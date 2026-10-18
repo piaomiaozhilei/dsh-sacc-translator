@@ -33,14 +33,22 @@ if existing:
  assert existing.get('digest')=='sha256:'+actual
  print('Identical asset already uploaded')
 else:
- # curl streams the large file without loading it into memory. Header is passed
- # over stdin rather than exposed as a process command-line argument.
- url=release['upload_url'].split('{')[0]+'?name='+output.name
- config='header = "Authorization: Bearer '+os.environ['GH_TOKEN']+'"\n'
- completed=subprocess.run(['curl','--fail-with-body','--silent','--show-error','--config','-',
-  '--header','Content-Type: application/octet-stream','--data-binary','@'+str(output),url],
-  input=config,text=True,capture_output=True,timeout=1200)
- assert completed.returncode==0, 'GitHub upload failed: '+str(completed.returncode)
- asset=json.loads(completed.stdout)
+ import http.client,urllib.parse
+ url=urllib.parse.urlsplit(release['upload_url'].split('{')[0]+'?name='+output.name)
+ connection=http.client.HTTPSConnection(url.hostname,timeout=1200)
+ connection.putrequest('POST',url.path+'?'+url.query)
+ connection.putheader('Authorization','Bearer '+os.environ['GH_TOKEN'])
+ connection.putheader('Accept','application/vnd.github+json')
+ connection.putheader('Content-Type','application/octet-stream')
+ connection.putheader('Content-Length',str(output.stat().st_size))
+ connection.putheader('User-Agent','verified-gpu-release')
+ connection.endheaders()
+ with output.open('rb') as stream:
+  while chunk:=stream.read(2*1024*1024):connection.send(chunk)
+ response=connection.getresponse()
+ payload=response.read()
+ assert response.status==201, 'GitHub upload failed: HTTP '+str(response.status)
+ asset=json.loads(payload)
+ connection.close()
  assert asset.get('digest')=='sha256:'+actual
  print('Uploaded verified GPU component',flush=True)
