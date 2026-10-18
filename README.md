@@ -4,9 +4,25 @@ Windows x64 翻译插件，复用 DSH 模型选择、语音输入和文档预览
 
 ## 状态
 
-当前源码对应 0.1.17，适配 DSH 0.2.1-rc.2。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，不包含 SACC 主应用、用户数据、密钥、日志或运行时二进制。
+当前源码对应 0.1.18，适配 DSH 0.2.1-rc.2。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，不包含 SACC 主应用、用户数据、密钥、日志或运行时二进制。
 
 支持扩展名：doc/docx、xls/xlsx、ppt/pptx、pdf、png/jpg/jpeg/bmp/gif/webp、txt/md/csv/html/htm。复杂排版与 OCR 译文仍需人工复核。
+
+## npm 安装（0.1.18）
+
+官方“添加插件”输入 `dsh-sacc-translator-cpu` 或 `dsh-sacc-translator-cuda`。也可使用 CLI：
+
+```powershell
+dsh plugin --profile desktop add dsh-sacc-translator-cpu
+# 或
+dsh plugin --profile desktop add dsh-sacc-translator-cuda
+```
+
+npm 入口包约 26 KB。包管理器自动下载固定版本 GitHub Release 运行时；CUDA 额外自动下载 GPU 组件，无安装脚本。首次总下载量仍约 CPU 364 MB / CUDA 2.04 GB。不要同时启用两个版本。
+
+基础运行时作为内部依赖 `dsh-sacc-translator-runtime` 引用已验证的 CPU 0.1.17 Release 包，用户无需单独安装或启用。npm 包不包含用户文档、设置、密钥或历史。0.1.17 完整 Release 安装方法仍可使用。
+
+当前入口包构建：`npm pack ./packages/cpu` 和 `npm pack ./packages/cuda`。下面的完整包构建配方须先检出 `v0.1.17` 标签，避免混用版本。
 
 ## 构建
 

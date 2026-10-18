@@ -16,6 +16,7 @@ def add(archive, name, stream, size, mode=0o644):
     archive.addfile(info, stream)
 
 def build(inputs, output):
+    assert json.loads((ROOT/"packages/cpu/package.json").read_text())["version"] == "0.1.17", "Use tag v0.1.17 for historical full packages; current npm entry packages use npm pack packages/cpu and packages/cuda."
     output.mkdir(parents=True, exist_ok=True)
     for name, expected in INPUTS.items():
         path = inputs / name

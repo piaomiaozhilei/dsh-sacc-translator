@@ -6,7 +6,7 @@ import { mountGpuComponent } from './gpu-component.js';
 
 // Native Office/OCR DLL loaders cannot reliably use pnpm's deep virtual store.
 // Keep an immutable, versioned runtime outside translation history/cache.
-export async function prepareRuntime(root, home, edition, version) {
+export async function prepareRuntime(root, home, edition, version, packageRoot = root) {
   const destination=join(home, version+'-'+edition);
   const ready=join(destination,'ready.json');
   try { if (JSON.parse(await readFile(ready,'utf8')).version===version) return join(destination,'runtime'); }
@@ -27,7 +27,7 @@ export async function prepareRuntime(root, home, edition, version) {
   try {
     await copy(join(root,'runtime'),join(staging,'runtime'));
     if(edition==='cuda') {
-      const component=dirname(createRequire(join(root,'package.json')).resolve('dsh-sacc-translator-gpu/package.json'));
+      const component=dirname(createRequire(join(packageRoot,'package.json')).resolve('dsh-sacc-translator-gpu/package.json'));
       await mountGpuComponent(staging,component);
     }
     await writeFile(join(staging,'ready.json'),JSON.stringify({version,edition}));

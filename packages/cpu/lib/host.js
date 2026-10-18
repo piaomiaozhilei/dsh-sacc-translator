@@ -1,3 +1,4 @@
+import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, open, copyFile } from 'node:fs/promises';
@@ -15,15 +16,17 @@ export const inject = ['connection', 'sessionController', 'sessionProjections', 
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const edition = manifest.translatorEdition;
+const runtimeRoot = manifest.translatorRuntimePackage
+  ? dirname(createRequire(import.meta.url).resolve(manifest.translatorRuntimePackage + '/package.json')) : root;
 const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {'content-type': 'application/json', 'cache-control': 'no-store'}});
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const languages = {'中文':'zh','English':'en','日本語':'ja','한국어':'ko','Français':'fr','Deutsch':'de','Español':'es','العربية':'ar'};
 
 export async function apply(ctx) {
   let runtimePreparation;
-  const prepare = () => runtimePreparation ||= prepareRuntime(root,
+  const prepare = () => runtimePreparation ||= prepareRuntime(runtimeRoot,
     join(process.env.LOCALAPPDATA || join(homedir(), '.dsh'), 'dsh-translator', 'runtimes'),
-    edition, manifest.version).catch(error => { runtimePreparation = undefined; throw error; });
+    edition, manifest.version, root).catch(error => { runtimePreparation = undefined; throw error; });
   if (edition === 'cuda') prepare().catch(() => {}); // Retry with a visible task error; never break host startup.
   // One stable data root survives edition changes and uninstall/reinstall.
   const data = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'sacc-translator');
