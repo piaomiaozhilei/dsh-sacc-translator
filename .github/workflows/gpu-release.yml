@@ -1,0 +1,27 @@
+name: Upload verified GPU component
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - release/gpu-manifest.json
+      - release/rebuild_gpu.py
+      - .github/workflows/gpu-release.yml
+permissions:
+  contents: write
+jobs:
+  gpu:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Fetch pinned release recipe
+        env:
+          REPO: ${{ github.repository }}
+          REVISION: ${{ github.sha }}
+        run: |
+          mkdir -p release
+          curl --fail --silent --show-error "https://raw.githubusercontent.com/$REPO/$REVISION/release/rebuild_gpu.py" -o release/rebuild_gpu.py
+          curl --fail --silent --show-error "https://raw.githubusercontent.com/$REPO/$REVISION/release/gpu-manifest.json" -o release/gpu-manifest.json
+      - name: Rebuild, verify and upload to draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: python release/rebuild_gpu.py

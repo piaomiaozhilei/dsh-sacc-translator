@@ -1,0 +1,298 @@
+{
+  "archive": "translator-gpu-runtime-0.1.16.zip",
+  "sha256": "eeb1827eb327cb66648bfb05c63c73234b4ca3f9bcd5bc170b6ca2ac86ab5159",
+  "entries": [
+    {
+      "filename": "_internal/onnxruntime/capi/onnxruntime_providers_cuda.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        40
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "bc4f2cb394948f1bc4678ed4bcbcf377b1047272eb9a01724334bef81f3bfef3"
+    },
+    {
+      "filename": "_internal/nvidia/cufft/bin/cufft64_11.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        40
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "5b90655ca9cdf5d91cbdf2c72b995ec937eed0aef2d6954370c711b45c929b35"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "2ea14732f39b7f0d571de6fd14cb7c0c08652c6633d673ad9d179743c8083cd3"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_adv64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "04be9f67c2f92c3172b065ea68fa8b6271bb13d31264ac225fa9751f7d6d9484"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_cnn64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "6ffe5484b61d94ab42ebc7b5737fa0ee3e3c2dd043825966253118fe2456a2d1"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_engines_precompiled64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "58093341a7474968be624de49dd171772bac6c1ba16c6e6acfd5a1edc406db66"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_engines_runtime_compiled64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "52d244ccd54a98c6f372fbf773fc592eea0d0a85d16ea7eea1fb7f9bfd71f0e2"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_engines_tensor_ir64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "27002dae30705f0f310b05e492c72f197e1d00e45dc735682412c7e6e274ef41"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_ext64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "f82ad629d2299aeacd044b9d5e265ea163bbceb753e1409bb34ba27868bd844f"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_graph64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "3c9fc4d73c41e66b93a8fc9c56536579ac36c1e87937728f3f1a24b4615202f4"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_heuristic64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        40
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "eddd4556da1292bc329399aceabe327b5b9e965f19cbfcafd6c60fbd9e566346"
+    },
+    {
+      "filename": "_internal/nvidia/cudnn/bin/cudnn_ops64_9.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        40
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "c390e070b0ac214fa1ae0a40241776a291f90e5f07d46899f2d15fcec831a404"
+    },
+    {
+      "filename": "_internal/nvidia/cuda_runtime/bin/cudart64_12.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "760c38928bbe5759f7b31ed6692599eb7ec83cedd5702e84c2b72028a89837e1"
+    },
+    {
+      "filename": "_internal/nvidia/cublas/bin/cublas64_12.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "52ce5ba0ec5327d39be6021f0f9362d2ed4d64d7206f9b5afc06398d827b8e82"
+    },
+    {
+      "filename": "_internal/nvidia/cublas/bin/cublasLt64_12.dll",
+      "date_time": [
+        2026,
+        10,
+        18,
+        15,
+        12,
+        38
+      ],
+      "compress_type": 8,
+      "external_attr": 2176188416,
+      "internal_attr": 0,
+      "create_system": 0,
+      "create_version": 20,
+      "extract_version": 20,
+      "flag_bits": 0,
+      "sha256": "71705a7cf0923f4ab034d0d2620bbfc989ff669ac3d79f868b7a7c597ca559c5"
+    }
+  ],
+  "packages": [
+    "onnxruntime-gpu==1.24.1",
+    "nvidia-cublas-cu12==12.9.2.10",
+    "nvidia-cuda-runtime-cu12==12.9.79",
+    "nvidia-cufft-cu12==11.4.1.4",
+    "nvidia-cudnn-cu12==9.25.1.1"
+  ]
+}
