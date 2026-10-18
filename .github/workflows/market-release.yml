@@ -14,4 +14,4 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           test "$(gh release view v0.1.17 --json isDraft --jq .isDraft)" = true
-          gh release upload v0.1.17 /tmp/translator-market/*
+          gh release upload v0.1.17 --clobber /tmp/translator-market/*

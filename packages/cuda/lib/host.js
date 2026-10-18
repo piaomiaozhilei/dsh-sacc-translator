@@ -9,19 +9,22 @@ import { homedir, cpus } from 'node:os';
 import { createInterface } from 'node:readline';
 import { translationCache } from './cache.js';
 import { translationPrompt, decodeTranslations } from './prompt.js';
-import { mountGpuComponent } from './gpu-component.js';
+import { prepareRuntime } from './runtime.js';
 
 export const inject = ['connection', 'sessionController', 'sessionProjections', 'agents', 'fileUploads', 'attachments', 'llm', 'agentDefaultModel'];
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
-const edition = JSON.parse(await readFile(join(root, 'package.json'), 'utf8')).translatorEdition;
+const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
+const edition = manifest.translatorEdition;
 const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {'content-type': 'application/json', 'cache-control': 'no-store'}});
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const languages = {'中文':'zh','English':'en','日本語':'ja','한국어':'ko','Français':'fr','Deutsch':'de','Español':'es','العربية':'ar'};
 
 export async function apply(ctx) {
-  let gpuPreparation;
-  const prepareGpu = () => gpuPreparation ||= mountGpuComponent(root).catch(error => { gpuPreparation = undefined; throw error; });
-  if (edition === 'cuda') prepareGpu().catch(() => {}); // Retry with a visible task error; never break host startup.
+  let runtimePreparation;
+  const prepare = () => runtimePreparation ||= prepareRuntime(root,
+    join(process.env.LOCALAPPDATA || join(homedir(), '.dsh'), 'dsh-translator', 'runtimes'),
+    edition, manifest.version).catch(error => { runtimePreparation = undefined; throw error; });
+  if (edition === 'cuda') prepare().catch(() => {}); // Retry with a visible task error; never break host startup.
   // One stable data root survives edition changes and uninstall/reinstall.
   const data = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'sacc-translator');
   await mkdir(data, {recursive: true});
@@ -118,7 +121,9 @@ export async function apply(ctx) {
     if(!/\.xlsx?$/i.test(path))return path;
     const folder=join(data,'previews',randomUUID());await mkdir(folder,{recursive:true});
     const destination=join(folder,'preview.xlsx');
-    const worker=spawn(join(root,'runtime','translator-worker.exe'),[],{windowsHide:true,cwd:join(root,'runtime'),stdio:['pipe','pipe','pipe'],env:{...process.env,PYTHONUTF8:'1'}});
+    const runtime=await prepare();
+    if(disposed||signal.aborted)throw new Error('预览已取消');
+    const worker=spawn(join(runtime,'translator-worker.exe'),[],{windowsHide:true,cwd:runtime,stdio:['pipe','pipe','pipe'],env:{...process.env,PYTHONUTF8:'1'}});
     return await new Promise((resolveResult,reject)=>{
       let result, failure, stderr='';
       const abort=()=>{failure=new Error('表格预览已取消或处理超时');if(process.platform==='win32'&&worker.pid)spawn('taskkill',['/PID',String(worker.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'}).on('error',()=>worker.kill());else worker.kill();};
@@ -140,10 +145,10 @@ export async function apply(ctx) {
       if (job.text) {
         job.result = (await modelBatch(job, [{id: 'text', text: job.text}], controller.signal)).text;
       } else {
-        if (edition === 'cuda') await prepareGpu();
+        const runtime = await prepare();
         if (disposed || controller.signal.aborted) throw new Error('翻译已取消');
-        const worker = join(root, 'runtime', 'translator-worker.exe');
-        const child = spawn(worker, [], {windowsHide: true, cwd: join(root, 'runtime'), stdio: ['pipe','pipe','pipe'],
+        const worker = join(runtime, 'translator-worker.exe');
+        const child = spawn(worker, [], {windowsHide: true, cwd: runtime, stdio: ['pipe','pipe','pipe'],
           env: {...process.env, PYTHONUTF8: '1', TRANSLATOR_EDITION: edition}});
         live.get(job.id).child = child;
         child.stdin.on('error', () => {}); // Exit/cancellation owns the task failure.

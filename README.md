@@ -33,7 +33,7 @@ dsh plugin --profile desktop add https://github.com/piaomiaozhilei/dsh-sacc-tran
 dsh plugin --profile desktop add https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-cuda-0.1.17.tgz
 ```
 
-首次安装 CUDA 需要下载较大的组件，等待宿主安装完成；安装失败时在市场重试。组件不是独立 DSH 插件，无需启用，不单独列入市场。插件启用时校验 15 个 DLL 并自动挂载，同盘优先使用硬链接避免重复占用，跨盘才复制。首次校验和 CUDA 初始化可能需要一分钟。无兼容 NVIDIA GPU 时工作进程明确显示原因并回退 CPU。
+首次安装 CUDA 需要下载较大的组件，等待宿主安装完成；安装失败时在市场重试。组件不是独立 DSH 插件，无需启用，不单独列入市场。插件启用时校验 15 个 DLL 并自动挂载。运行时存放在 `%LOCALAPPDATA%/dsh-translator/runtimes` 的版本目录，避免 pnpm 深路径导致 Windows DLL 加载失败；同盘优先使用硬链接避免重复占用，跨盘才复制。该目录属于安装组件，不计入翻译文档缓存。首次校验和 CUDA 初始化可能需要一分钟。无兼容 NVIDIA GPU 时工作进程明确显示原因并回退 CPU。
 
 已有用户请先结束翻译任务，通过宿主禁用旧版、安装新版，再启用所需版本；重启 DSH 后生效。更新不会删除翻译设置或记录。不要同时启用 CPU 和 CUDA。GPU 依赖下载失败会使 CUDA 安装失败，不会声称已完成 GPU 安装。GPU 组件校验失败会阻止文件翻译并提示重装，不会静默使用损坏文件。
 

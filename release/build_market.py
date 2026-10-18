@@ -51,7 +51,7 @@ def build(inputs, output):
                             with source.extractfile(member) as stream: add(result, member.name, stream, member.size, member.mode)
         assets.append(target)
         print(target.name, target.stat().st_size, digest(target), flush=True)
-    (output/'SHA256SUMS.txt').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in assets), encoding='utf8')
+    (output/'SHA256SUMS.txt').write_text(''.join(digest(p)+'  '+p.name+'\n' for p in assets), encoding='utf8', newline='\n')
 
 if __name__ == '__main__':
     parser=argparse.ArgumentParser(); parser.add_argument('--inputs', type=Path, required=True); parser.add_argument('--output', type=Path, required=True)
