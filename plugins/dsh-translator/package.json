@@ -1,0 +1,1 @@
+{"name":"sacc-translator-development","private":true,"type":"module","translatorEdition":"cpu","scripts":{"test":"node --test tests/*.test.mjs"}}

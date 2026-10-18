@@ -1,0 +1,13 @@
+**/.build/
+**/.reference/
+**/dist/
+**/node_modules/
+**/__pycache__/
+.tools/
+*.log
+.env
+.env.*
+*.db
+*.sqlite*
+*.tgz
+*.zip
