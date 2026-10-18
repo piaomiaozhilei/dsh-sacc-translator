@@ -1,6 +1,6 @@
 {
   "name": "dsh-sacc-translator-cuda",
-  "version": "0.1.18",
+  "version": "0.1.19",
   "description": "SACC 原格式文档翻译 CUDA",
   "type": "module",
   "main": "lib/host.js",

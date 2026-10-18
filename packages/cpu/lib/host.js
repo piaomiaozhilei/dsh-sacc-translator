@@ -32,7 +32,7 @@ export async function apply(ctx) {
   const data = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'sacc-translator');
   await mkdir(data, {recursive: true});
   const settingsPath = join(data, 'settings.json');
-  const defaults = {concurrency: 1, ocrQuality: 'medium', ocrWorkers: 1, preferGpu: true, gpuMemory: 'performance'};
+  const defaults = {concurrency: 5, ocrQuality: 'medium', ocrWorkers: 1, preferGpu: true, gpuMemory: 'performance'};
   const maxOcrWorkers = cpus().length >= 12 ? 3 : cpus().length >= 6 ? 2 : 1;
   const validSetting = (key, value) => ({concurrency: () => Number.isInteger(value) && value >= 1 && value <= 8,
     ocrQuality: () => ['ultra_low','low','medium','high'].includes(value),

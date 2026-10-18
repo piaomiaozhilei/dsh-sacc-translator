@@ -37,7 +37,7 @@ window.__ModuleLoader__.load({id: 'dsh-sacc-translator-cuda', factory: require =
     const [mode,setMode] = useState(draft.mode||'workspace'), [selected,setSelected] = useState(draft.selected||null), [dragging,setDragging] = useState(false);
     const [reference,setReference] = useState(null); const fileInput = useRef(null);
     const [recording,setRecording] = useState(false); const owner = useRef({});
-    const [concurrency,setConcurrency] = useState(1), [saving,setSaving] = useState(false), [settingsError,setSettingsError] = useState('');
+    const [concurrency,setConcurrency] = useState(5), [saving,setSaving] = useState(false), [settingsError,setSettingsError] = useState('');
     draft = {text,source,target,file,mode,selected};
     const settingsDialog = useRef(null), previewDialog = useRef(null);
     const [previewData,setPreviewData] = useState(null), [previewMode,setPreviewMode] = useState('both');
@@ -183,7 +183,7 @@ window.__ModuleLoader__.load({id: 'dsh-sacc-translator-cuda', factory: require =
         h('form',{onSubmit:e=>{e.preventDefault();setSaving(true);setSettingsError('');api({...ocrSettings,action:'settings',concurrency:Number(concurrency)},owner.current.page.signal).then(()=>{settingsDialog.current.close();setPhase('设置已保存，从下一个任务生效');}).catch(e=>setSettingsError(e.message)).finally(()=>setSaving(false));}},
           h('div',{className:'section-heading'},h('h2',{id:'sacc-settings-title'},'翻译设置'),button('关闭设置','close',()=>settingsDialog.current.close(),{iconOnly:true,className:'st-button icon-button'})),
           h('label',{className:'settings-field',htmlFor:'sacc-concurrency'},h('span',null,'并发数量'),h('input',{id:'sacc-concurrency',type:'number',min:1,max:8,step:1,required:true,value:concurrency,disabled:saving,'aria-describedby':'sacc-concurrency-help',onChange:e=>setConcurrency(e.target.value)})),
-          h('p',{id:'sacc-concurrency-help',className:'settings-help'},'文档分块同时请求模型的数量，范围 1–8。默认 1；修改后从下一个任务生效。'),settingsError&&h('p',{className:'error',role:'alert'},settingsError),
+          h('p',{id:'sacc-concurrency-help',className:'settings-help'},'文档分块同时请求模型的数量，范围 1–8。默认 5；修改后从下一个任务生效。'),settingsError&&h('p',{className:'error',role:'alert'},settingsError),
           h('div',{className:'settings-divider'}),
           h('label',{className:'settings-field'},h('span',null,'文件 OCR 精度'),h('select',{value:ocrSettings.ocrQuality,disabled:saving,onChange:e=>updateOcr('ocrQuality',e.target.value)},...Object.entries({ultra_low:'1200px · 超低',low:'1400px · 低',medium:'1600px · 中（默认）',high:'2200px · 高'}).map(([value,label])=>h('option',{key:value,value},label)))),
           h('p',{className:'settings-help'},'用于图片和扫描 PDF 的文字检测。低档节省内存，高档适合小字、低对比度和倾斜扫描件；译文仍以高清分辨率回填。'),

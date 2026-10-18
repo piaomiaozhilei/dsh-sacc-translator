@@ -2,3 +2,23 @@
     - id: sacc-translator-cuda
       name: 'dsh-sacc-translator-cuda'
       disabled: !!js "[...ctx.loader.entries()].some((e) => ['dsh-sacc-translator-cpu', 'dsh-sacc-translator-cuda'].includes(e.options.name) && e.options.id !== 'sacc-translator-cuda' && !e.disabled)"
+
+- id: workspace-files
+  name: '@deepseek-ai/dsh-api-workspace-files'
+  config:
+    maxFileBytes: 1073741824
+- id: ui-sidebar-documentpreview
+  name: '@deepseek-ai/dsh-client-ui-sidebar-documentpreview'
+  config:
+    excel:
+      maxBytes: 268435456
+      maxCells: 1000000
+      timeoutMs: 120000
+- id: office-to-pdf
+  name: '@deepseek-ai/dsh-office-to-pdf'
+  config:
+    maxInputBytes: 536870912
+    maxOutputBytes: 1073741824
+    maxSourceBytes: 1073741824
+    maxUncompressedBytes: 2147483648
+    timeoutMs: 300000
