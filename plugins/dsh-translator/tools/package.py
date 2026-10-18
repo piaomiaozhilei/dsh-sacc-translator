@@ -61,8 +61,10 @@ def build():
             return [n for n in names if n == 'nvidia' or 'providers_cuda' in n.lower() or 'tensorrt' in n.lower()]
         shutil.copytree(source, package/'runtime', dirs_exist_ok=True, ignore=ignore)
         target = dist / f'{name}-{VERSION}.tgz'
+        def release_filter(info):
+            return None if '__pycache__' in Path(info.name).parts or info.name.endswith(('.pyc', '.pyo', '.log')) else info
         with tarfile.open(target, 'w:gz', compresslevel=6) as archive:
-            archive.add(package, arcname='package')
+            archive.add(package, arcname='package', filter=release_filter)
         sha512 = hashlib.sha512(); sha1 = hashlib.sha1()
         with target.open('rb') as stream:
             for chunk in iter(lambda:stream.read(8*1024*1024),b''): sha512.update(chunk); sha1.update(chunk)

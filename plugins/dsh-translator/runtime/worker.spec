@@ -18,7 +18,7 @@ a.binaries = [x for x in a.binaries if 'tensorrt' not in x[0].lower()]
 # after dependency analysis so its DLLs are not also copied into Python's root.
 office = project / '.tools/libreoffice/runtime'
 for file in office.rglob('*'):
-    if not file.is_file():
+    if not file.is_file() or '__pycache__' in file.parts or file.suffix.lower() in ('.pyc', '.pyo'):
         continue
     rel = file.relative_to(office).as_posix()
     if rel.startswith(('share/extensions/', 'share/gallery/')):
