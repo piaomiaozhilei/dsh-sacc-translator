@@ -31,12 +31,17 @@ export async function prepareRuntime(root, home, edition, version, packageRoot =
       await mountGpuComponent(staging,component);
     }
     await writeFile(join(staging,'ready.json'),JSON.stringify({version,edition}));
-    try { await rename(staging,destination); }
-    catch(error) {
-      // Another host may have prepared this same immutable version concurrently.
-      if(!['EEXIST','ENOTEMPTY','EPERM'].includes(error.code))throw error;
-      if(JSON.parse(await readFile(ready,'utf8')).version!==version)throw error;
+    for(let attempt=0; ; attempt++) {
+      try { await rename(staging,destination); break; }
+      catch(error) {
+        if(!['EEXIST','ENOTEMPTY','EPERM','EACCES'].includes(error.code))throw error;
+        // A second host may finish first; Windows scanners can also briefly lock DLLs.
+        try { if(JSON.parse(await readFile(ready,'utf8')).version===version)break; }
+        catch(readError) { if(readError.code!=='ENOENT')throw readError; }
+        if(attempt>=9)throw error;
+        await new Promise(resolve=>setTimeout(resolve,500));
+      }
     }
     return join(destination,'runtime');
-  } finally { await rm(staging,{recursive:true,force:true}); }
+  } finally { await rm(staging,{recursive:true,force:true,maxRetries:3,retryDelay:200}); }
 }
