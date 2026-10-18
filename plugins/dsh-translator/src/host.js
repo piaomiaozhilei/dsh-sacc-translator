@@ -9,6 +9,7 @@ import { homedir, cpus } from 'node:os';
 import { createInterface } from 'node:readline';
 import { translationCache } from './cache.js';
 import { translationPrompt, decodeTranslations } from './prompt.js';
+import { mountGpuComponent } from './gpu-component.js';
 
 export const inject = ['connection', 'sessionController', 'sessionProjections', 'agents', 'fileUploads', 'attachments', 'llm', 'agentDefaultModel'];
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
@@ -18,6 +19,9 @@ const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const languages = {'中文':'zh','English':'en','日本語':'ja','한국어':'ko','Français':'fr','Deutsch':'de','Español':'es','العربية':'ar'};
 
 export async function apply(ctx) {
+  let gpuPreparation;
+  const prepareGpu = () => gpuPreparation ||= mountGpuComponent(root).catch(error => { gpuPreparation = undefined; throw error; });
+  if (edition === 'cuda') prepareGpu().catch(() => {}); // Retry with a visible task error; never break host startup.
   // One stable data root survives edition changes and uninstall/reinstall.
   const data = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'sacc-translator');
   await mkdir(data, {recursive: true});
@@ -136,6 +140,8 @@ export async function apply(ctx) {
       if (job.text) {
         job.result = (await modelBatch(job, [{id: 'text', text: job.text}], controller.signal)).text;
       } else {
+        if (edition === 'cuda') await prepareGpu();
+        if (disposed || controller.signal.aborted) throw new Error('翻译已取消');
         const worker = join(root, 'runtime', 'translator-worker.exe');
         const child = spawn(worker, [], {windowsHide: true, cwd: join(root, 'runtime'), stdio: ['pipe','pipe','pipe'],
           env: {...process.env, PYTHONUTF8: '1', TRANSLATOR_EDITION: edition}});

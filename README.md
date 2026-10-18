@@ -4,37 +4,40 @@ Windows x64 翻译插件，复用 DSH 模型选择、语音输入和文档预览
 
 ## 状态
 
-当前源码对应 0.1.16，适配 DSH 0.2.1-rc.2。支持 CPU 基础版、CUDA 基础版及独立可选 GPU 组件。仓库只包含翻译所需源码，不包含 SACC 主应用、用户数据、密钥、日志或运行时二进制。
+当前源码对应 0.1.17，适配 DSH 0.2.1-rc.2。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，不包含 SACC 主应用、用户数据、密钥、日志或运行时二进制。
 
 支持扩展名：doc/docx、xls/xlsx、ppt/pptx、pdf、png/jpg/jpeg/bmp/gif/webp、txt/md/csv/html/htm。复杂排版与 OCR 译文仍需人工复核。
 
 ## 构建
 
-在 Windows x64 上准备 Python 环境，安装 `requirements-build.txt`。将官方 LibreOffice Windows 运行时放在 `.tools/libreoffice/runtime`（应包含 `program/soffice.com`）；构建脚本只打包转换所需的保留资源。Office 及 NVIDIA 等第三方组件另受各自许可约束。
+0.1.17 发行包复用经过 SHA-256 校验的 0.1.16 运行时，保留已验证的格式支持。以下命令下载固定版本公开发行附件并构建三个包：
 
 ```powershell
-python -m pip install -r requirements-build.txt
-python -m PyInstaller --noconfirm --distpath plugins/dsh-translator/.build/worker-lean --workpath plugins/dsh-translator/.build/pyinstaller-lean plugins/dsh-translator/runtime/worker.spec
-python plugins/dsh-translator/tools/package.py
+python release/build_market.py --inputs .build/inputs --output plugins/dsh-translator/dist
 ```
 
-输出位于 `plugins/dsh-translator/dist`。打包要求新的版本暂存目录，以免旧文件混入新包。
+输出 CPU、CUDA 与 GPU 附属包以及 SHA256SUMS.txt。构建只接受固定哈希的输入；源代码位于 plugins/dsh-translator，发行前端位于 packages/cpu 与 packages/cuda。GPU 二进制不存入 Git。
 
-## 本机安装
+若修改 Python 文档处理逻辑，则需在 Windows x64 安装 requirements-build.txt，并在 .tools/libreoffice/runtime 准备官方 LibreOffice，使用 runtime/worker.spec 重新构建并完成文档回归验证，再更新发行输入哈希。Office 与 NVIDIA 等第三方组件保留其各自许可。
 
-通过 DSH 自带 CLI 将生成的 CPU 或 CUDA tgz 安装到 desktop 配置；只启用一个版本：
+## 安装 0.1.17（Windows x64）
+
+公共市场收录审核通过后，搜索“翻译 CPU”或“翻译 CUDA”。CPU 无 NVIDIA 依赖；CUDA 自动安装固定版本 GPU 附属组件，不需要手工下载 ZIP 或执行脚本。两个版本只启用一个，共用设置与翻译历史。
+
+也可以直接使用 DSH 官方 CLI：
 
 ```powershell
-dsh plugin --profile desktop add ./plugins/dsh-translator/dist/dsh-sacc-translator-cuda-0.1.16.tgz
+# CPU（约 364 MB）
+dsh plugin --profile desktop add https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-cpu-0.1.17.tgz
+# 或 CUDA（基础包约 364 MB，自动下载 GPU 组件约 1.68 GB）
+dsh plugin --profile desktop add https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-cuda-0.1.17.tgz
 ```
 
-GPU ZIP 与对应的 `Install-GpuRuntime-0.1.16.ps1` 放在同一目录。等待翻译任务结束后，执行以下命令，将路径替换为实际安装的 CUDA 插件目录（包含 package.json 和 runtime）：
+首次安装 CUDA 需要下载较大的组件，等待宿主安装完成；安装失败时在市场重试。组件不是独立 DSH 插件，无需启用，不单独列入市场。插件启用时校验 15 个 DLL 并自动挂载，同盘优先使用硬链接避免重复占用，跨盘才复制。首次校验和 CUDA 初始化可能需要一分钟。无兼容 NVIDIA GPU 时工作进程明确显示原因并回退 CPU。
 
-```powershell
-./Install-GpuRuntime-0.1.16.ps1 -PluginPath '实际 CUDA 插件目录'
-```
+已有用户请先结束翻译任务，通过宿主禁用旧版、安装新版，再启用所需版本；重启 DSH 后生效。更新不会删除翻译设置或记录。不要同时启用 CPU 和 CUDA。GPU 依赖下载失败会使 CUDA 安装失败，不会声称已完成 GPU 安装。GPU 组件校验失败会阻止文件翻译并提示重装，不会静默使用损坏文件。
 
-脚本校验插件版本和 GPU ZIP 的 SHA-256。未安装组件时 CUDA 基础版明确提示并使用 CPU；已安装组件后，三个 OCR 模型实际执行后才报告 CUDA 状态。重启 DSH 后使用插件。
+0.1.17 复用已经验证的 0.1.16 文档运行时，仅更改安装依赖和组件挂载；没有模型、OCR 或文档格式逻辑变更。旧 0.1.16 ZIP/PowerShell 手动安装方法仅适用于旧版。
 
 ## 设置与隐私
 
@@ -48,4 +51,4 @@ GPU ZIP 与对应的 `Install-GpuRuntime-0.1.16.ps1` 放在同一目录。等待
 
 基础安装包约 364 MB；可选 GPU 组件约 1.68 GB，完整 CUDA 下载约 2.04 GB。首次 CUDA 初始化仍可能约一分钟；尚未实现跨任务引擎复用。
 
-当前市场脚本仅提供本机 127.0.0.1 索引，上传此仓库不会自动加入公共插件市场。发行附件与公共索引需单独发布。
+公共目录条目位于社区 awesome-dsh-plugin，审核通过后才能在 dshmarket 搜索。仓库 packages/cpu 与 packages/cuda 分别对应两个可安装条目，包内二进制仅通过 Release 分发。release/build_market.py 从校验过的 0.1.16 包可复现构建 0.1.17。

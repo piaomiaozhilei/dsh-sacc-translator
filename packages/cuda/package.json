@@ -1,0 +1,53 @@
+{
+  "name": "dsh-sacc-translator-cuda",
+  "version": "0.1.17",
+  "description": "SACC 原格式文档翻译 CUDA",
+  "type": "module",
+  "main": "lib/host.js",
+  "translatorEdition": "cuda",
+  "exports": {
+    ".": "./lib/host.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "engines": {
+    "dsh": "0.2.1-rc.2"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-sidebar",
+        "@deepseek-ai/dsh-client-ui-layout",
+        "@deepseek-ai/dsh-client-file-upload",
+        "@deepseek-ai/dsh-client-ui-model-selection",
+        "@deepseek-ai/dsh-client-ui-sidebar-documentpreview"
+      ]
+    }
+  },
+  "os": [
+    "win32"
+  ],
+  "cpu": [
+    "x64"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/piaomiaozhilei/dsh-sacc-translator.git",
+    "directory": "packages/cuda"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "翻译",
+    "translation",
+    "OCR",
+    "cuda"
+  ],
+  "dependencies": {
+    "dsh-sacc-translator-gpu": "https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-gpu-0.1.16.tgz"
+  }
+}

@@ -1,0 +1,4 @@
+- insert:
+    - id: sacc-translator-cuda
+      name: 'dsh-sacc-translator-cuda'
+      disabled: !!js "[...ctx.loader.entries()].some((e) => ['dsh-sacc-translator-cpu', 'dsh-sacc-translator-cuda'].includes(e.options.name) && e.options.id !== 'sacc-translator-cuda' && !e.disabled)"
