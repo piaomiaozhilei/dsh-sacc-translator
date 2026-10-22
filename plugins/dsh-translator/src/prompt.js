@@ -18,10 +18,49 @@ export function translationPrompt(source, target, units) {
   return {system, input: JSON.stringify({items, ...(Object.keys(hints).length ? {hints} : {})})};
 }
 
+function responseObjects(text) {
+  const clean = text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, '');
+  let parsed;
+  try { parsed = JSON.parse(clean); }
+  catch {
+    // Extract complete top-level containers, respecting braces inside strings.
+    // Never salvage nested entries from a malformed or truncated container.
+    const objects = [];
+    let start = -1, quoted = false, escaped = false;
+    const stack = [];
+    for (let i = 0; i < clean.length; i++) {
+      const char = clean[i];
+      if (start < 0) {
+        if (char !== '{' && char !== '[') continue;
+        start = i;
+      }
+      if (quoted) {
+        if (escaped) escaped = false;
+        else if (char === '\\') escaped = true;
+        else if (char === '"') quoted = false;
+        continue;
+      }
+      if (char === '"') quoted = true;
+      else if (char === '{' || char === '[') stack.push(char);
+      else if (char === '}' || char === ']') {
+        if (stack.pop() !== (char === '}' ? '{' : '[')) throw new Error('模型翻译响应 JSON 括号不匹配');
+        if (!stack.length) {
+          objects.push(JSON.parse(clean.slice(start, i + 1)));
+          start = -1;
+        }
+      }
+    }
+    if (start >= 0) throw new Error('模型翻译响应 JSON 不完整');
+    if (!objects.length) throw new Error('模型翻译响应不包含有效 JSON 对象');
+    return objects;
+  }
+  return [parsed];
+}
+
 export function decodeTranslations(text, units) {
-  const parsed = JSON.parse(text.trim().replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/, ''));
-  if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) throw new Error('模型翻译响应不是 JSON 对象');
-  const candidates = [parsed, parsed.items, parsed.translations].filter(value => value && typeof value === 'object' && !Array.isArray(value));
+  const objects = responseObjects(text);
+  if (objects.some(value => !value || typeof value !== 'object' || Array.isArray(value))) throw new Error('模型翻译响应不是 JSON 对象');
+  const candidates = objects.flatMap(parsed => [parsed, parsed.items, parsed.translations]).filter(value => value && typeof value === 'object' && !Array.isArray(value));
   const result = {};
   units.forEach((unit, index) => {
     const values = [...new Set(candidates.map(value => value[String(index)]).filter(value => typeof value === 'string' && value.trim()))];

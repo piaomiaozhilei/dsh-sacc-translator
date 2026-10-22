@@ -1,5 +1,6 @@
 window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
   const React = require('react');
+  const {Tooltip, writeClipboard, IconCopyOutlineRegular, IconCheckOutlineRegular, IconClockOutlineRegular} = require('@deepseek-ai/dsh-client-ui-primitives');
   const {useState, useEffect, useRef} = React;
   const h = React.createElement;
   const route = '/api/sacc-translator';
@@ -202,7 +203,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
           h('div',{className:'settings-actions'},button('取消',null,()=>settingsDialog.current.close()),h('button',{type:'submit',className:'st-button settings-save',disabled:saving},saving?'正在保存…':'保存')))),
       h('div',{key:mode,id:'sacc-view',role:'tabpanel','aria-labelledby':`sacc-tab-${mode}`,className:`view ${mode==='chat'?'chat-view':''}`},
         mode==='workspace'?h(React.Fragment,null,h('div',{className:'workspace-grid'},composer,h('section',{className:'output','aria-label':'译文'},h('div',{className:'card-heading'},h('span',null,'译文'),current&&h('span',{className:'badge'},status[current.status])),current?result(current):h('div',{className:'empty-output'},h(Icon),h('p',null,'让文字跨越语言'),h('small',null,'译文与下载文件会显示在这里')),current?.result&&h('div',{className:'result-actions'},button('复制译文','copy',()=>safe(async()=>{await navigator.clipboard.writeText(current.result);setPhase('译文已复制');})))))):
-        h(React.Fragment,null,h('div',{className:'chat-feed'},jobs.length?[...jobs].reverse().map(job=>h('article',{className:'chat-pair',key:job.id},h('div',{className:'user-message'},title(job)),h('div',{className:'assistant-message'},h(Icon),h('div',{className:'assistant-content'},h('small',null,`翻译助手 · ${status[job.status]}`),result(job))))):h('div',{className:'chat-empty'},h(Icon),h('h2',null,'换一种语言，继续表达'),h('p',null,'输入文字、上传文档，或用语音开始。'))),composer),
+        h(React.Fragment,null,h('div',{className:'chat-feed'},jobs.length?[...jobs].reverse().map(job=>h('article',{className:'chat-pair',key:job.id},h('div',{className:'user-message'},title(job)),h('div',{className:'assistant-message'},h(Icon),h('div',{className:'assistant-content'},h('small',null,`翻译助手 · ${status[job.status]}`),result(job),job.status!=='running'&&h(MessageActions,{job}))))):h('div',{className:'chat-empty'},h(Icon),h('h2',null,'换一种语言，继续表达'),h('p',null,'输入文字、上传文档，或用语音开始。'))),composer),
         h('div',{className:'statusline',role:'status','aria-live':'polite'},(busy||recording)&&h('span',{className:'pulse'}),recording?'正在录音 · 点击麦克风结束':phase),error&&h('div',{role:'alert',className:'error'},error),
         mode==='workspace'&&h('section',{className:'history'},h('div',{className:'section-heading'},h('h2',null,'最近翻译'),h('small',null,`${jobs.length} 条记录`)),jobs.length?jobs.slice(0,20).map(job=>button('',null,()=>setSelected(job.id),{key:job.id,className:'st-button history-row','aria-label':`查看翻译：${title(job).slice(0,60)}`,'aria-pressed':current?.id===job.id,children:[h(Glyph,{key:'icon',name:job.text?'chat':'file'}),h('span',{key:'title',className:'history-copy'},h('span',{className:'history-title'},title(job)),h('small',null,new Date(job.createdAt).toLocaleString())),h('span',{key:'status',className:'badge'},status[job.status])]})):h('small',null,'完成一段翻译，从这里继续。'))),
       h('p',{className:'hint'},'支持 Word、Excel、PDF 与图片 · __EDITION__')));
@@ -281,6 +282,33 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
       return label?h(label.component,{...label.inject?.(session),...owner,...label.locale?{t:ctx.locale.bind(label.locale)}:{}}):options?.fallback;
     };
     return h(entry.component,{...injected,locked,t:ctx.locale.bind(entry.locale),renderSlot:renderLabel});
+  }
+  function MessageActions({job}) {
+    const [copied,setCopied] = useState(false), [copyError,setCopyError] = useState('');
+    const pending = useRef(false), lifetime = useRef(null);
+    useEffect(()=>{
+      const life = {active:true,timer:null}; lifetime.current = life;
+      return ()=>{life.active=false;clearTimeout(life.timer);};
+    },[]);
+    const copyText = job.result || [job.error || job.message,
+      ...(job.artifacts||[]).map(a=>[a.name,a.message,...(a.warnings||[])].filter(Boolean).join('\n'))].filter(Boolean).join('\n\n');
+    const copy = async()=>{
+      if(pending.current||copied)return;
+      pending.current=true;setCopyError('');
+      const life=lifetime.current;
+      try {
+        if(!await writeClipboard(copyText))throw new Error('复制失败，请重试');
+        if(!life?.active)return;
+        setCopied(true);life.timer=setTimeout(()=>{if(life.active)setCopied(false);},1000);
+      } catch {if(life?.active)setCopyError('复制失败，请重试');}
+      finally {pending.current=false;}
+    };
+    const date = new Date(job.completedAt||job.createdAt), validTime = Number.isFinite(date.getTime());
+    const timeLabel = `${job.completedAt?'结束时间':'创建时间'}：${validTime?date.toLocaleString():''}`;
+    return h('div',{className:'message-actions','aria-label':'译文消息操作'},
+      h(Tooltip,{label:copied?'已复制':'复制',side:'bottom'},h('button',{type:'button',className:'message-action','aria-label':copied?'已复制':'复制',onClick:copy,disabled:!copyText},h(copied?IconCheckOutlineRegular:IconCopyOutlineRegular))),
+      validTime&&h(Tooltip,{label:timeLabel,side:'bottom'},h('button',{type:'button',className:'message-action message-time','aria-label':timeLabel},h(IconClockOutlineRegular),h('time',{dateTime:date.toISOString()},date.toLocaleTimeString([],{hour:'2-digit',minute:'2-digit',hour12:false})))),
+      h('span',{className:copyError?'message-copy-error':'message-action-status',role:'status'},copyError||(copied?'已复制':'')));
   }
   function Glyph({name}) {
     const paths={eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',plus:'M12 5v14M5 12h14',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0zM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8',send:'M12 19V5M5 12l7-7 7 7',swap:'M4 8h15l-4-4M20 16H5l4 4',file:'M14 3H5v18h14V8zM14 3v6h5M8 13h8M8 17h5',download:'M12 3v12M7 10l5 5 5-5M4 17v4h16v-4',close:'M6 6l12 12M6 18L18 6',stop:'M6 6h12v12H6z',copy:'M8 8h12v13H8zM16 8V3H3v13h5',grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',chat:'M21 11a8 8 0 0 1-8 8H7l-5 3 2-6a8 8 0 1 1 17-5z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};

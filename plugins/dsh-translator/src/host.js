@@ -52,6 +52,7 @@ export async function apply(ctx) {
   let admitting = false;
   let clearing = false, activeRequests = 0;
   const persist = async job => {
+    if (terminal.has(job.status) && !job.completedAt) job.completedAt = new Date().toISOString();
     const dir = join(data, job.id); await mkdir(dir, {recursive: true});
     // Serialize writes for each job: progress can arrive while a model request settles.
     const previous = jobWrites.get(job.id) || Promise.resolve();
@@ -73,7 +74,7 @@ export async function apply(ctx) {
     } catch { /* Incomplete first-write directories are not published jobs. */ }
   }
   const publicJob = job => ({id: job.id, status: job.status, message: job.message, progress: job.progress || 0,
-    createdAt: job.createdAt, edition: job.edition, text: job.text, source: job.source, target: job.target, selection: job.selection, runtime: job.runtime, result: job.result, error: job.error,
+    createdAt: job.createdAt, completedAt: job.completedAt, edition: job.edition, text: job.text, source: job.source, target: job.target, selection: job.selection, runtime: job.runtime, result: job.result, error: job.error,
     artifacts: (job.artifacts || []).map(a => ({artifact_id: a.artifact_id, status: a.status, progress: a.progress,
       message: a.message, warnings: a.warnings, name: a.output?.name || a.source?.name, downloadable: Boolean(a.output?.storage_key)}))});
   const stop = (id, status = 'cancelled') => {
