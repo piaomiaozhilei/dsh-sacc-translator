@@ -11,18 +11,22 @@ import { createInterface } from 'node:readline';
 import { translationCache } from './cache.js';
 import { translationPrompt, decodeTranslations } from './prompt.js';
 import { prepareRuntime } from './runtime.js';
+import { ScreenTranslator } from './screen.js';
 
 export const inject = ['connection', 'sessionController', 'sessionProjections', 'agents', 'fileUploads', 'attachments', 'llm', 'agentDefaultModel'];
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const edition = manifest.translatorEdition;
-const runtimeRoot = manifest.translatorRuntimePackage
-  ? dirname(createRequire(import.meta.url).resolve(manifest.translatorRuntimePackage + '/package.json')) : root;
+const runtimeRoot = manifest.translatorRuntimePackage ? dirname(createRequire(import.meta.url).resolve(manifest.translatorRuntimePackage + '/package.json')) : root;
 const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {'content-type': 'application/json', 'cache-control': 'no-store'}});
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const languages = {'中文':'zh','English':'en','日本語':'ja','한국어':'ko','Français':'fr','Deutsch':'de','Español':'es','العربية':'ar'};
 
 export async function apply(ctx) {
+  const required = ['connection.fetch.register', 'sessionController.create', 'sessionProjections.stateOf',
+    'agents.get', 'llm.resolveCallConfig', 'llm.stream', 'agentDefaultModel.currentSelection'];
+  const missing = required.filter(path => typeof path.split('.').reduce((value, key) => value?.[key], ctx) !== 'function');
+  if (missing.length) throw new Error(`翻译插件无法启动：当前 DSH 缺少必要接口 ${missing.join('、')}。请更新翻译插件以适配此版本 DSH。`);
   let runtimePreparation;
   const prepare = () => runtimePreparation ||= prepareRuntime(runtimeRoot,
     join(process.env.LOCALAPPDATA || join(homedir(), '.dsh'), 'dsh-translator', 'runtimes'),
@@ -64,6 +68,14 @@ export async function apply(ctx) {
     jobWrites.set(job.id, task); await task;
   };
   const jobWrites = new Map();
+  const screen = new ScreenTranslator({root,prepare,
+    translate:(job,units,signal)=>modelBatch(job,units,signal,false),
+    selection:sessionId=>{
+      if(!sessions.has(sessionId))throw new Error('翻译会话已失效，请重新开启屏幕翻译');
+      const agent=ctx.agents.get(sessionId);if(!agent)throw new Error('翻译会话已失效');
+      const selected=ctx.sessionProjections.stateOf(agent.session,'modelSelection');
+      return {...(selected?.pending??selected?.lastUsed??ctx.agentDefaultModel.currentSelection())};
+    }});
   for (const dir of await readdir(data, {withFileTypes: true})) {
     if (!dir.isDirectory()) continue;
     try {
@@ -89,6 +101,7 @@ export async function apply(ctx) {
     return persist(job);
   };
   ctx.on('dispose', async () => {
+    screen.dispose();
     disposed = true;
     for(const stopPreview of previewStops)stopPreview();
     await Promise.all([...live.keys()].map(id => stop(id, 'interrupted')));
@@ -96,15 +109,15 @@ export async function apply(ctx) {
     await settingsWrite.catch(() => {});
   });
 
-  async function modelBatch(job, units, signal) {
+  async function modelBatch(job, units, signal, saveAudit = true) {
     signal = AbortSignal.any([signal, AbortSignal.timeout(600000)]);
     signal.throwIfAborted();
     const selection = job.selection;
     const {system, input} = translationPrompt(job.source, job.target, units);
     // Persist the exact model input before sending; no credentials enter the audit.
-    const audit = join(data, job.id, `request-${randomUUID()}.json`);
+    const audit = saveAudit ? join(data, job.id, `request-${randomUUID()}.json`) : null;
     const messages = [{id: randomUUID(), role: 'user', source: {kind: 'user'}, content: [{type: 'text', text: input}]}];
-    await writeFile(audit, JSON.stringify({selection, system, messages, units, promptVersion: 2}));
+    if(audit)await writeFile(audit, JSON.stringify({selection, system, messages, units, promptVersion: 2}));
     let text = ''; let finish;
     for await (const chunk of ctx.llm.stream({...selection, system, messages, signal})) {
       signal.throwIfAborted();
@@ -115,9 +128,9 @@ export async function apply(ctx) {
       throw new Error(`模型未正常完成: ${JSON.stringify(finish?.reason || 'stream ended')}`);
     }
     // Preserve rejected output too, so protocol problems can be diagnosed offline.
-    await writeFile(audit.replace('.json', '-raw.txt'), text);
+    if(audit)await writeFile(audit.replace('.json', '-raw.txt'), text);
     const result = decodeTranslations(text, units);
-    await writeFile(audit.replace('.json', '-response.json'), JSON.stringify(result));
+    if(audit)await writeFile(audit.replace('.json', '-response.json'), JSON.stringify(result));
     return result;
   }
 
@@ -209,8 +222,18 @@ export async function apply(ctx) {
         return new Response(Readable.toWeb(handle.createReadStream()), {headers: {'content-type': 'application/octet-stream',
           'content-disposition': `attachment; filename*=UTF-8''${encodeURIComponent(artifact.output.name)}`}});
       }
-      if (request.method === 'GET') return json({edition, settings, capabilities: {maxOcrWorkers, logicalCpus: cpus().length}, jobs: [...jobs.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(publicJob)});
+      if (request.method === 'GET') return json({edition, settings, screen:screen.status(), capabilities: {maxOcrWorkers, logicalCpus: cpus().length}, jobs: [...jobs.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(publicJob)});
       const body = await request.json();
+      if(body.action==='screen'){
+        if(body.operation==='disable')return json(screen.disable());
+        if(!sessions.has(body.sessionId))return json({error:'翻译会话已失效，请刷新页面'},400);
+        const configuration={sessionId:body.sessionId,source:languages[body.source]||String(body.source||'auto').slice(0,80),target:languages[body.target]||String(body.target||'zh').slice(0,80)};
+        if(body.operation==='enable')return json(await screen.enable(configuration));
+        screen.configure(configuration);
+        if(body.operation==='select')return json(screen.select());
+        if(body.operation==='configure')return json(screen.status());
+        return json({error:'未知屏幕翻译操作'},400);
+      }
       if (body.action === 'cache') return json({...await translationCache(data),historyCount:jobs.size});
       if (body.action === 'clearCache') {
         if(live.size || admitting || activeRequests>1) return json({error:'请等待翻译、上传或预览加载结束后清理'},409);

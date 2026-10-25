@@ -4,11 +4,11 @@ Windows x64 翻译插件，复用 DSH 模型选择、语音输入和文档预览
 
 ## 状态
 
-当前源码对应 0.1.21，适配 DSH 0.2.1-rc.2。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，不包含 SACC 主应用、用户数据、密钥、日志或运行时二进制。
+当前源码对应 0.2.2，已检查 DSH 0.2.1-rc.2 / rc.3 接口。`engines.dsh` 使用 `*`，正式版与预发布版不再因版本号被拦截；这不代表未来接口变化已经验证。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，包含 Rust 屏幕翻译源码及入口包所需原生组件，不包含 SACC 主应用、用户数据、密钥、日志或大型文档运行库。
 
 支持扩展名：doc/docx、xls/xlsx、ppt/pptx、pdf、png/jpg/jpeg/bmp/gif/webp、txt/md/csv/html/htm。复杂排版与 OCR 译文仍需人工复核。
 
-## npm 安装（0.1.21）
+## npm 安装（0.2.2）
 
 官方“添加插件”输入 `dsh-sacc-translator-cpu` 或 `dsh-sacc-translator-cuda`。也可使用 CLI：
 
@@ -18,19 +18,23 @@ dsh plugin --profile desktop add dsh-sacc-translator-cpu
 dsh plugin --profile desktop add dsh-sacc-translator-cuda
 ```
 
-npm 入口包约 26 KB。包管理器自动下载固定版本 GitHub Release 运行时；CUDA 额外自动下载 GPU 组件，无安装脚本。首次总下载量仍约 CPU 364 MB / CUDA 2.04 GB。不要同时启用两个版本。
+npm 入口包约 550 KB（含 Windows x64 Rust 屏幕翻译组件）。包管理器自动下载固定版本 GitHub Release 运行时；CUDA 额外自动下载 GPU 组件，无安装脚本。首次总下载量仍约 CPU 364 MB / CUDA 2.04 GB。不要同时启用两个版本。
 
 基础运行时作为内部依赖 `dsh-sacc-translator-runtime` 引用已验证的 CPU 0.1.17 Release 包，用户无需单独安装或启用。npm 包不包含用户文档、设置、密钥或历史。0.1.17 完整 Release 安装方法仍可使用。
 
 当前入口包构建：`npm pack ./packages/cpu` 和 `npm pack ./packages/cuda`。下面的完整包构建配方须先检出 `v0.1.17` 标签，避免混用版本。
 
-## 0.1.21 更新
+## 0.2.2 更新
 
-修复模型返回 JSON 后附加说明或输出多个 JSON 对象时导致整批翻译失败的问题。解析保留有效翻译，冲突条目交由定向重试；不接受截断或结构损坏的 JSON。
+取消 DSH 精确版本号限制，启动时检查必要宿主接口，缺少接口时给出适配提示。接口行为变化仍可能需要后续修复；不绕过 DSH 的用户授权或修改宿主兼容性豁免配置。
 
-翻译聊天消息下方新增复制与时间操作，复用宿主剪贴板接口、图标和提示组件，提供复制成功/失败反馈。新任务记录结束时间；旧记录回退显示创建时间。保留 0.1.19 的并发和预览配置，以及固定的基础运行时/GPU 依赖。
+屏幕翻译迁入插件，截图、选区、OCR 和浮层由 Rust 实现。开启后按 Ctrl+Shift+S 框选，松开鼠标保留选区，可拖动边缘调整大小或拖动内部移动，按 Enter 确认翻译。支持原文切换、重新框选、重新翻译、复制译文和 Esc 退出。
 
-验证：9 项插件回归测试通过，本机离线 CUDA 版安装后已由用户确认界面正常。本次未重新执行整篇 PDF 的端到端翻译。
+使用缓存的高斯模糊遮罩和双缓冲绘制；译文使用整块磨砂背景及自适应文字颜色，不再逐行铺白色背景块。屏幕 OCR 在两版均使用 CPU，限制推理线程，按需启动，空闲 45 秒释放模型。截图只在内存处理，识别文字发送给 DSH 当前模型，不保存屏幕翻译审计。
+
+验证：13 项插件回归测试、4 项 Rust 测试通过；CPU/CUDA 离线安装与中英文 OCR 样例通过，已检查版本范围包含正式版及预发布版。完整桌面选区与真实模型的端到端视觉验证尚未完成；当前 OCR 主要面向横排文字，旋转和复杂排版需要进一步验证。
+
+原生源码：`plugins/dsh-translator/native/screen-translator`。Windows x64 Rust 工具链下执行 `cargo build --release`，将输出复制到两版 `packages/*/native/sacc-screen-translator.exe` 后使用 `npm pack` 打包。宿主测试：`cd plugins/dsh-translator && npm test`。屏幕 OCR 使用固定基础运行库中的 ONNX Runtime 和 PP-OCRv6 模型，用户无需安装 Rust。
 
 ## 0.1.21 更新
 

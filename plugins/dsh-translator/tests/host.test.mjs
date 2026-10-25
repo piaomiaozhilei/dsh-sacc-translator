@@ -5,6 +5,10 @@ import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {apply} from '../src/host.js';
 
+test('missing host APIs stop startup with an actionable compatibility error', async () => {
+  await assert.rejects(apply({}), error => /当前 DSH 缺少必要接口/.test(error.message) && /llm.stream/.test(error.message));
+});
+
 test('host text translation, request auditing, validation and reload', async () => {
   const home=await mkdtemp(join(tmpdir(),'translator-test-'));process.env.DSH_HOME=home;
   let route, dispose; let fail=false; let chosen;

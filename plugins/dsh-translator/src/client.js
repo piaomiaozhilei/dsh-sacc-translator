@@ -61,12 +61,25 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
       finally {setClearingCache(false);}
     }
     const updateOcr = (key,value) => setOcrSettings(previous=>({...previous,[key]:value}));
+    const [screen,setScreen] = useState({enabled:false,running:false}), [screenBusy,setScreenBusy] = useState(false);
+    useEffect(()=>{
+      if(!screen.enabled||!session)return;
+      const controller=new AbortController();
+      api({action:'screen',operation:'configure',sessionId:session,source,target},controller.signal).catch(e=>{if(!controller.signal.aborted)setError(e.message);});
+      return ()=>controller.abort();
+    },[screen.enabled,session,source,target]);
+    async function screenAction(operation){
+      setScreenBusy(true);
+      try{setScreen(await api({action:'screen',operation,sessionId:session,source,target},owner.current.page.signal));}
+      finally{setScreenBusy(false);}
+    }
     useEffect(() => {
       const controller = new AbortController(); owner.current.page = controller; let timer;
       const refresh = async () => {
-        try { const result = await api(null,controller.signal); setJobs(result.jobs); }
+        let delay=5000;
+        try { const result = await api(null,controller.signal); setJobs(result.jobs);setScreen(result.screen||{enabled:false});if(result.jobs.some(job=>job.status==='running')||result.screen?.running)delay=1200; }
         catch(e) { if (!controller.signal.aborted) setError(e.message); }
-        if (!controller.signal.aborted) timer = setTimeout(refresh,1200);
+        if (!controller.signal.aborted) timer = setTimeout(refresh,delay);
       };
       api({action:'session'},controller.signal).then(async x=>{
         if(controller.signal.aborted)return;
@@ -174,6 +187,10 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
       h('header',{className:'topbar'},h('div',{className:'brand'},h('div',{className:'brand-icon'},h(Icon)),h('div',null,h('h1',null,'翻译助手'),h('p',{className:'subtitle'},'文本与文档，自然流转'))),
         button('设置','settings',()=>safe(async()=>{const result=await api(null,owner.current.page.signal);setConcurrency(result.settings.concurrency);setOcrSettings(result.settings);setCapabilities(result.capabilities);setSettingsError('');setCache(null);settingsDialog.current.showModal();await refreshCache();}),{'aria-haspopup':'dialog'})),
       h('div',{className:'view-toolbar'},languageBar,viewTabs),
+      h('div',{className:'screen-toolbar'},
+        button(screen.enabled?'关闭屏幕翻译':'开启屏幕翻译','screen',()=>safe(()=>screenAction(screen.enabled?'disable':'enable')),{disabled:screenBusy||!session,'aria-pressed':!!screen.enabled}),
+        screen.enabled&&button('框选翻译 · Ctrl+Shift+S','screen',()=>safe(()=>screenAction('select')),{disabled:screenBusy||screen.running}),
+        h('small',{role:screen.error?'alert':'status'},screenBusy?'正在准备屏幕翻译…':screen.error||screen.message||'Rust 原生屏幕翻译 · 按需识别，空闲释放 OCR')),
       h('dialog',{ref:previewDialog,className:'preview-dialog','aria-labelledby':'sacc-preview-title',onCancel:closePreview,onClose:()=>{owner.current.preview?.abort();setPreviewData(null);}},
         h('header',{className:'preview-header'},h('div',{className:'preview-title'},h('h2',{id:'sacc-preview-title'},'文档预览'),h('small',null,previewData?.name)),
           h('div',{className:'preview-modes','aria-label':'预览布局'},...Object.entries({both:'对照',original:'仅原文',translated:'仅译文'}).map(([value,label])=>button(label,null,()=>setPreviewMode(value),{key:value,'aria-pressed':previewMode===value,disabled:previewData?.loading||(value!=='original'&&!previewData?.files?.[1])}))),
@@ -311,6 +328,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
       h('span',{className:copyError?'message-copy-error':'message-action-status',role:'status'},copyError||(copied?'已复制':'')));
   }
   function Glyph({name}) {
+    if(name==='screen')return h('svg',{width:18,height:18,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,'aria-hidden':true},h('path',{d:'M3 4h18v13H3zM8 21h8M12 17v4M7 8h10M7 12h6'}));
     const paths={eye:'M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12zM15 12a3 3 0 1 1-6 0 3 3 0 0 1 6 0',plus:'M12 5v14M5 12h14',mic:'M9 5a3 3 0 0 1 6 0v7a3 3 0 0 1-6 0zM5 10v2a7 7 0 0 0 14 0v-2M12 19v3M8 22h8',send:'M12 19V5M5 12l7-7 7 7',swap:'M4 8h15l-4-4M20 16H5l4 4',file:'M14 3H5v18h14V8zM14 3v6h5M8 13h8M8 17h5',download:'M12 3v12M7 10l5 5 5-5M4 17v4h16v-4',close:'M6 6l12 12M6 18L18 6',stop:'M6 6h12v12H6z',copy:'M8 8h12v13H8zM16 8V3H3v13h5',grid:'M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z',chat:'M21 11a8 8 0 0 1-8 8H7l-5 3 2-6a8 8 0 1 1 17-5z',settings:'M4 7h16M4 17h16M8 4v6M16 14v6'};
     return h('svg',{width:18,height:18,viewBox:'0 0 24 24',fill:'none',stroke:'currentColor',strokeWidth:1.6,strokeLinecap:'round',strokeLinejoin:'round','aria-hidden':true},h('path',{d:paths[name]}));
   }
