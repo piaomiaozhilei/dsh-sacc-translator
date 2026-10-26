@@ -1,6 +1,12 @@
 # SACC Translator for DeepSeek Harness
 
-Windows x64 翻译插件，复用 DSH 模型选择、语音输入和文档预览，支持文本及尽量保留原格式的文档翻译。
+Windows x64 翻译插件，提供侧栏独立入口与专属翻译界面，支持工作台／聊天模式切换、原文与译文双栏、文本和文档翻译、屏幕框选翻译及最近翻译记录。复用 DSH 模型选择、语音输入和文档预览，文档翻译尽量保留原格式。
+
+## 界面预览
+
+![侧栏独立翻译入口](packages/cpu/assets/translator-sidebar.png)
+
+![专属翻译工作台（CUDA 版，CPU 版共用界面）](packages/cpu/assets/translator-workbench.png)
 
 ## 状态
 
