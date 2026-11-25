@@ -1,4 +1,3 @@
-import { createRequire } from 'node:module';
 import { spawn } from 'node:child_process';
 import { randomUUID } from 'node:crypto';
 import { mkdir, readFile, writeFile, rename, readdir, open, copyFile } from 'node:fs/promises';
@@ -9,28 +8,58 @@ import { fileURLToPath } from 'node:url';
 import { homedir, cpus } from 'node:os';
 import { createInterface } from 'node:readline';
 import { translationCache } from './cache.js';
-import { translationPrompt, decodeTranslations } from './prompt.js';
+import { translationPrompt, decodeTranslations, singleTranslationPrompt, decodeSingleTranslation, recoverTranslations, TranslationFormatError } from './prompt.js';
 import { prepareRuntime } from './runtime.js';
 import { ScreenTranslator } from './screen.js';
+import { createDownloads } from './download.js';
 
 export const inject = ['connection', 'sessionController', 'sessionProjections', 'agents', 'fileUploads', 'attachments', 'llm', 'agentDefaultModel'];
+
+export function translatorModelSelection(value) {
+  const selection = {...value};
+  // These are DSH provider vocabulary differences, not API endpoint changes.
+  // Limit the adapter to the model verified on both configured providers.
+  if (selection.model === 'deepseek-flash' && ['off', 'none'].includes(selection.reasoningEffort)) {
+    if (selection.provider === 'deepseek-official') selection.reasoningEffort = 'off';
+    else if (selection.provider === 'department-gateway-member') selection.reasoningEffort = 'none';
+  }
+  return selection;
+}
+
+export async function translationDefaultSelection(llm, current) {
+  const selection = translatorModelSelection(current);
+  if (typeof llm.resolveModelInfo !== 'function') return selection;
+  const info = await llm.resolveModelInfo(selection.provider, selection.model);
+  const efforts = info.reasoning?.efforts || [];
+  const off = ['off', 'none'].find(id => efforts.some(effort => effort.id === id));
+  if (off !== undefined) selection.reasoningEffort = off;
+  else if (!info.reasoning) delete selection.reasoningEffort;
+  return selection;
+}
+
+export function uploadedFileReference(staged) {
+  if (!staged) return undefined;
+  if (staged.type === 'image') throw new Error('此上传凭据是图片引用，请以文件方式重新上传');
+  // Newer hosts wrap the durable file reference; older hosts return it directly.
+  return staged.type === 'file' && 'attachment' in staged ? staged.attachment : staged;
+}
 const root = dirname(dirname(fileURLToPath(import.meta.url)));
 const manifest = JSON.parse(await readFile(join(root, 'package.json'), 'utf8'));
 const edition = manifest.translatorEdition;
-const runtimeRoot = manifest.translatorRuntimePackage ? dirname(createRequire(import.meta.url).resolve(manifest.translatorRuntimePackage + '/package.json')) : root;
 const json = (value, status = 200) => new Response(JSON.stringify(value), {status, headers: {'content-type': 'application/json', 'cache-control': 'no-store'}});
 const terminal = new Set(['completed', 'failed', 'cancelled', 'interrupted']);
 const languages = {'中文':'zh','English':'en','日本語':'ja','한국어':'ko','Français':'fr','Deutsch':'de','Español':'es','العربية':'ar'};
 
 export async function apply(ctx) {
+  const downloads=createDownloads();
   const required = ['connection.fetch.register', 'sessionController.create', 'sessionProjections.stateOf',
     'agents.get', 'llm.resolveCallConfig', 'llm.stream', 'agentDefaultModel.currentSelection'];
   const missing = required.filter(path => typeof path.split('.').reduce((value, key) => value?.[key], ctx) !== 'function');
   if (missing.length) throw new Error(`翻译插件无法启动：当前 DSH 缺少必要接口 ${missing.join('、')}。请更新翻译插件以适配此版本 DSH。`);
   let runtimePreparation;
-  const prepare = () => runtimePreparation ||= prepareRuntime(runtimeRoot,
+  const prepare = () => runtimePreparation ||= prepareRuntime(root,
     join(process.env.LOCALAPPDATA || join(homedir(), '.dsh'), 'dsh-translator', 'runtimes'),
-    edition, manifest.version, root).catch(error => { runtimePreparation = undefined; throw error; });
+    edition, manifest.translatorRuntimeBuild ? `${manifest.version}-${manifest.translatorRuntimeBuild}` : manifest.version).catch(error => { runtimePreparation = undefined; throw error; });
   if (edition === 'cuda') prepare().catch(() => {}); // Retry with a visible task error; never break host startup.
   // One stable data root survives edition changes and uninstall/reinstall.
   const data = join(process.env.DSH_HOME || join(homedir(), '.dsh'), 'sacc-translator');
@@ -52,6 +81,20 @@ export async function apply(ctx) {
   const live = new Map();
   const previewStops = new Set();
   const sessions = new Set();
+  const sessionsPath = join(data, 'translation-sessions.json');
+  try {
+    const saved = JSON.parse(await readFile(sessionsPath, 'utf8'));
+    if (Array.isArray(saved)) for (const id of saved) if (typeof id === 'string') sessions.add(id);
+  } catch (error) { if (error.code !== 'ENOENT') throw error; }
+  let sessionsWrite = Promise.resolve();
+  const saveSessions = () => {
+    const snapshot = JSON.stringify([...sessions]);
+    sessionsWrite = sessionsWrite.catch(() => {}).then(async () => {
+      await writeFile(sessionsPath + '.tmp', snapshot);
+      await rename(sessionsPath + '.tmp', sessionsPath);
+    });
+    return sessionsWrite;
+  };
   let disposed = false;
   let admitting = false;
   let clearing = false, activeRequests = 0;
@@ -74,17 +117,20 @@ export async function apply(ctx) {
       if(!sessions.has(sessionId))throw new Error('翻译会话已失效，请重新开启屏幕翻译');
       const agent=ctx.agents.get(sessionId);if(!agent)throw new Error('翻译会话已失效');
       const selected=ctx.sessionProjections.stateOf(agent.session,'modelSelection');
-      return {...(selected?.pending??selected?.lastUsed??ctx.agentDefaultModel.currentSelection())};
+      return translatorModelSelection(selected?.pending??selected?.lastUsed??ctx.agentDefaultModel.currentSelection());
     }});
   for (const dir of await readdir(data, {withFileTypes: true})) {
     if (!dir.isDirectory()) continue;
     try {
       const job = JSON.parse(await readFile(join(data, dir.name, 'job.json'), 'utf8'));
       if (job.id !== dir.name) continue;
+      // Migrate sessions created before the durable registry existed.
+      if (typeof job.sessionId === 'string') sessions.add(job.sessionId);
       if (!terminal.has(job.status)) { job.status = 'interrupted'; job.message = '上次运行已中断，请重新提交'; await persist(job); }
       jobs.set(job.id, job);
     } catch { /* Incomplete first-write directories are not published jobs. */ }
   }
+  await saveSessions();
   const publicJob = job => ({id: job.id, status: job.status, message: job.message, progress: job.progress || 0,
     createdAt: job.createdAt, completedAt: job.completedAt, edition: job.edition, text: job.text, source: job.source, target: job.target, selection: job.selection, runtime: job.runtime, result: job.result, error: job.error,
     artifacts: (job.artifacts || []).map(a => ({artifact_id: a.artifact_id, status: a.status, progress: a.progress,
@@ -107,17 +153,22 @@ export async function apply(ctx) {
     await Promise.all([...live.keys()].map(id => stop(id, 'interrupted')));
     await Promise.allSettled([...jobWrites.values()]);
     await settingsWrite.catch(() => {});
+    await sessionsWrite.catch(() => {});
   });
 
   async function modelBatch(job, units, signal, saveAudit = true) {
     signal = AbortSignal.any([signal, AbortSignal.timeout(600000)]);
+    return recoverTranslations(units, (subset, single) => modelRequest(job, subset, signal, saveAudit, single), signal);
+  }
+
+  async function modelRequest(job, units, signal, saveAudit, single) {
     signal.throwIfAborted();
-    const selection = job.selection;
-    const {system, input} = translationPrompt(job.source, job.target, units);
+    const selection = translatorModelSelection(job.selection);
+    const {system, input} = single ? singleTranslationPrompt(job.source, job.target, units[0]) : translationPrompt(job.source, job.target, units);
     // Persist the exact model input before sending; no credentials enter the audit.
     const audit = saveAudit ? join(data, job.id, `request-${randomUUID()}.json`) : null;
     const messages = [{id: randomUUID(), role: 'user', source: {kind: 'user'}, content: [{type: 'text', text: input}]}];
-    if(audit)await writeFile(audit, JSON.stringify({selection, system, messages, units, promptVersion: 2}));
+    if(audit)await writeFile(audit, JSON.stringify({selection, system, messages, units, promptVersion: 3, mode: single ? 'single-string' : 'batch'}));
     let text = ''; let finish;
     for await (const chunk of ctx.llm.stream({...selection, system, messages, signal})) {
       signal.throwIfAborted();
@@ -129,7 +180,9 @@ export async function apply(ctx) {
     }
     // Preserve rejected output too, so protocol problems can be diagnosed offline.
     if(audit)await writeFile(audit.replace('.json', '-raw.txt'), text);
-    const result = decodeTranslations(text, units);
+    let result;
+    try { result = single ? decodeSingleTranslation(text, units[0]) : decodeTranslations(text, units); }
+    catch (error) { throw new TranslationFormatError(error.message, {cause: error}); }
     if(audit)await writeFile(audit.replace('.json', '-response.json'), JSON.stringify(result));
     return result;
   }
@@ -224,6 +277,15 @@ export async function apply(ctx) {
       }
       if (request.method === 'GET') return json({edition, settings, screen:screen.status(), capabilities: {maxOcrWorkers, logicalCpus: cpus().length}, jobs: [...jobs.values()].sort((a,b) => b.createdAt.localeCompare(a.createdAt)).map(publicJob)});
       const body = await request.json();
+      if(body.action==='saveStatus')return json(downloads.get(body.id));
+      if(body.action==='saveArtifact'){
+        if(process.platform!=='win32')return json({error:'当前系统不支持 Windows 保存窗口'},400);
+        const artifact=jobs.get(body.jobId)?.artifacts?.find(a=>a.artifact_id===body.artifactId);
+        if(!artifact?.output?.storage_key)return json({error:'找不到译文文件'},404);
+        const folder=resolve(data,body.jobId,'files');const path=resolve(folder,artifact.output.storage_key);
+        if(!path.startsWith(folder+'\\'))return json({error:'无效路径'},400);
+        return json(downloads.start(path,basename(artifact.output.name)));
+      }
       if(body.action==='screen'){
         if(body.operation==='disable')return json(screen.disable());
         if(!sessions.has(body.sessionId))return json({error:'翻译会话已失效，请刷新页面'},400);
@@ -236,7 +298,7 @@ export async function apply(ctx) {
       }
       if (body.action === 'cache') return json({...await translationCache(data),historyCount:jobs.size});
       if (body.action === 'clearCache') {
-        if(live.size || admitting || activeRequests>1) return json({error:'请等待翻译、上传或预览加载结束后清理'},409);
+        if(live.size || admitting || downloads.busy || activeRequests>1) return json({error:'请等待翻译、上传、保存或预览加载结束后清理'},409);
         clearing=true;
         try {
           await Promise.allSettled([...jobWrites.values()]);
@@ -262,20 +324,32 @@ export async function apply(ctx) {
         return json(await speech.transcribe({audioBase64: body.audioBase64}, request.signal));
       }
       if (body.action === 'session') {
-        const created = await ctx.sessionController.create({cwd: data}); sessions.add(created.sessionId);
         // Initialize only this translation session; selectModel also changes the host-wide default.
-        const selection = await ctx.llm.resolveCallConfig({...ctx.agentDefaultModel.currentSelection(), reasoningEffort: 'off'});
+        const selection = await ctx.llm.resolveCallConfig(await translationDefaultSelection(ctx.llm, ctx.agentDefaultModel.currentSelection()));
+        const created = await ctx.sessionController.create({cwd: data}); sessions.add(created.sessionId);
+        await saveSessions();
         ctx.agents.get(created.sessionId).session.append('model/selection', {
           provider: selection.provider, model: selection.model,
           ...(selection.reasoningEffort === undefined ? {} : {reasoningEffort: selection.reasoningEffort}),
         });
         return json(created);
       }
+      if (body.action === 'selectModel') {
+        if (!sessions.has(body.sessionId)) return json({error:'翻译会话已失效，请刷新页面'},400);
+        const agent = ctx.agents.get(body.sessionId);
+        if (!agent) return json({error:'翻译会话已失效，请刷新页面'},400);
+        const requested = {provider:body.selection?.provider, model:body.selection?.model,
+          ...(body.selection?.reasoningEffort === undefined ? {} : {reasoningEffort:body.selection.reasoningEffort})};
+        const selection = await ctx.llm.resolveCallConfig(translatorModelSelection(requested));
+        agent.session.append('model/selection', {provider:selection.provider,model:selection.model,
+          ...(selection.reasoningEffort === undefined ? {} : {reasoningEffort:selection.reasoningEffort})});
+        return json({ok:true});
+      }
       if (body.action === 'preview') {
         if (!sessions.has(body.sessionId)) return json({error: '翻译会话已失效，请刷新页面'}, 400);
         let path;
         if (body.receiptId) {
-          const ref = ctx.fileUploads.resolve(ctx.agents.get(body.sessionId), body.receiptId);
+          const ref = uploadedFileReference(await ctx.fileUploads.resolve(ctx.agents.get(body.sessionId), body.receiptId));
           if (!ref) return json({error: '上传凭据无效'}, 400);
           const folder = join(data, 'previews', randomUUID()); await mkdir(folder, {recursive:true});
           path = join(folder, basename(ref.name || 'document'));
@@ -317,13 +391,13 @@ export async function apply(ctx) {
       if (!sessionAgent) return json({error: '翻译会话已失效，请刷新页面'}, 400);
       const selected = ctx.sessionProjections.stateOf(sessionAgent.session, 'modelSelection');
       // Snapshot the host selector's session choice for every chunk in this task.
-      job.selection = {...(selected?.pending ?? selected?.lastUsed ?? ctx.agentDefaultModel.currentSelection())};
+      job.selection = translatorModelSelection(selected?.pending ?? selected?.lastUsed ?? ctx.agentDefaultModel.currentSelection());
       Object.assign(job, settings);
       if (job.text.length > 100000) return json({error: '文本超过 100000 字符，请改用文件'}, 400);
       const folder = join(data, job.id, 'files'); await mkdir(folder, {recursive: true});
       if (body.receiptId) {
         const agent = ctx.agents.get(body.sessionId);
-        const ref = agent && ctx.fileUploads.resolve(agent, body.receiptId);
+        const ref = agent && uploadedFileReference(await ctx.fileUploads.resolve(agent, body.receiptId));
         if (!ref) return json({error: '上传凭据无效或不属于此会话'}, 400);
         const name = basename(ref.name || 'document');
         const id = randomUUID(); const file = await open(join(folder, id), 'wx');

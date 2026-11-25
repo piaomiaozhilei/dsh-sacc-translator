@@ -11,6 +11,29 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
     if (!response.ok) throw new Error(result.error || `HTTP ${response.status}`);
     return result;
   }
+  async function saveArtifact(job,artifact,report=()=>{}) {
+    report('请选择译文保存位置');
+    if(window.dshDesktop){
+      const {id}=await api({action:'saveArtifact',jobId:job.id,artifactId:artifact.artifact_id});
+      while(true){
+        const state=await api({action:'saveStatus',id});
+        if(state.status==='failed')throw new Error(state.error||'保存失败，请重试');
+        if(['saved','cancelled'].includes(state.status))return state;
+        if(state.status==='saving')report(`正在保存：${(state.bytes/1048576).toFixed(1)} / ${(state.total/1048576).toFixed(1)} MB`);
+        await new Promise(resolve=>setTimeout(resolve,400));
+      }
+    }
+    if(typeof window.showSaveFilePicker!=='function')throw new Error('当前环境不支持选择保存位置，请在 DSH 桌面版中保存译文');
+    let handle;
+    try{handle=await window.showSaveFilePicker({suggestedName:artifact.name});}
+    catch(error){if(error.name==='AbortError')return {status:'cancelled'};throw error;}
+    const response=await send(`${route}?download=${encodeURIComponent(job.id)}&artifact=${encodeURIComponent(artifact.artifact_id)}`);
+    if(!response.ok)throw new Error(`下载失败（HTTP ${response.status}）`);
+    const output=await handle.createWritable();
+    try{report('正在保存译文');await response.body.pipeTo(output);}
+    catch(error){try{await output.abort();}catch{}throw error;}
+    return {status:'saved'};
+  }
   async function wave(blob) {
     const audio = new AudioContext();
     try {
@@ -31,7 +54,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
   }
   const css = __STYLES__;
   let draft = {};
-  function Panel({ctx}) {
+  function Panel({ctx,...hostProps}) {
     const [text,setText] = useState(draft.text||''), [source,setSource] = useState(draft.source||'auto'), [target,setTarget] = useState(draft.target||'中文');
     const [session,setSession] = useState(''), [file,setFile] = useState(draft.file||null), [jobs,setJobs] = useState([]);
     const [error,setError] = useState(''), [busy,setBusy] = useState(false), [phase,setPhase] = useState('');
@@ -106,6 +129,9 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
         setSelected(started.id || started.job?.id || null); const fresh=await api(null,controller.signal);setJobs(fresh.jobs);
         if(mode==='chat'){setText('');setFile(null);}
         setPhase('任务已提交');
+      } catch (error) {
+        setPhase('提交未完成，请查看下方错误后重试');
+        throw error;
       } finally {setBusy(false);}
     }
     async function record() {
@@ -151,9 +177,13 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
       } finally {setBusy(false);}
     }
     async function download(job,artifact){
-      const response=await send(`${route}?download=${encodeURIComponent(job.id)}&artifact=${encodeURIComponent(artifact.artifact_id)}`);
-      if(!response.ok)throw new Error('下载失败，请重试');
-      const url=URL.createObjectURL(await response.blob());const anchor=document.createElement('a');anchor.href=url;anchor.download=artifact.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),30000);
+      if(owner.current.downloading)return;
+      owner.current.downloading=true;setPhase('请选择译文保存位置');
+      try {
+        const result=await saveArtifact(job,artifact,setPhase);
+        setPhase(result.status==='cancelled'?'已取消保存':result.status==='saved'?`译文已保存${result.path?'：'+result.path:''}`:'已发起下载，请查看下载列表');
+      } catch(error) { setPhase('下载未完成，请查看错误后重试');throw error; }
+      finally { owner.current.downloading=false; }
     }
     const language=(label,value,set,auto)=>h('label',{className:'language'},h('span',null,label),h('select',{value,onChange:e=>set(e.target.value)},...(auto?['auto']:[]).concat(['中文','English','日本語','한국어','Français','Deutsch','Español','العربية']).map(x=>h('option',{key:x,value:x},x==='auto'?'自动识别':x))));
     const active=jobs.some(job=>job.status==='running');
@@ -196,7 +226,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
           h('div',{className:'preview-modes','aria-label':'预览布局'},...Object.entries({both:'对照',original:'仅原文',translated:'仅译文'}).map(([value,label])=>button(label,null,()=>setPreviewMode(value),{key:value,'aria-pressed':previewMode===value,disabled:previewData?.loading||(value!=='original'&&!previewData?.files?.[1])}))),
           button('关闭预览','close',closePreview,{iconOnly:true,className:'st-button icon-button'})),
         previewData?.loading?h('div',{className:'preview-loading',role:'status'},'正在准备文档…'):previewData?.error?h('p',{className:'error',role:'alert'},previewData.error):previewData&&h('div',{className:'preview-columns','data-mode':previewMode},
-          ...['original','translated'].map((side,i)=>h('section',{key:side,className:'preview-pane',hidden:previewMode!=='both'&&previewMode!==side,'aria-label':i?'译文预览':'原文预览'},h('div',{className:'preview-pane-label'},i?'译文':'原文'),h('div',{className:'preview-native'},previewData.files?.[i]?h(PreviewBoundary,{key:previewData.files[i].path||side},h(NativeDocument,{ctx,session,file:previewData.files[i],signal:previewData.signal})):h('p',null,'译文尚未生成')))))),
+          ...['original','translated'].map((side,i)=>h('section',{key:side,className:'preview-pane',hidden:previewMode!=='both'&&previewMode!==side,'aria-label':i?'译文预览':'原文预览'},h('div',{className:'preview-pane-label'},i?'译文':'原文'),h('div',{className:'preview-native'},previewData.files?.[i]?h(PreviewBoundary,{key:previewData.files[i].path||side},h(NativeDocument,{ctx,hostProps,session,file:previewData.files[i],signal:previewData.signal})):h('p',null,'译文尚未生成')))))),
       h('dialog',{ref:settingsDialog,className:'settings-dialog','aria-labelledby':'sacc-settings-title',onClick:e=>{if(e.target===e.currentTarget){const rect=e.currentTarget.getBoundingClientRect();if(e.clientX<rect.left||e.clientX>rect.right||e.clientY<rect.top||e.clientY>rect.bottom)e.currentTarget.close();}}},
         h('form',{onSubmit:e=>{e.preventDefault();setSaving(true);setSettingsError('');api({...ocrSettings,action:'settings',concurrency:Number(concurrency)},owner.current.page.signal).then(()=>{settingsDialog.current.close();setPhase('设置已保存，从下一个任务生效');}).catch(e=>setSettingsError(e.message)).finally(()=>setSaving(false));}},
           h('div',{className:'section-heading'},h('h2',{id:'sacc-settings-title'},'翻译设置'),button('关闭设置','close',()=>settingsDialog.current.close(),{iconOnly:true,className:'st-button icon-button'})),
@@ -231,7 +261,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
     render(){return this.state.error?h('div',{className:'preview-loading',role:'alert'},'预览加载失败：'+this.state.error):this.props.children;}
   }
   // Embed the host's registered document bodies; no sidebar navigation or copied renderer.
-  function NativeRenderer({ctx,session,entry,tab,ownerProps}) {
+  function NativeRenderer({ctx,hostProps,session,entry,tab,ownerProps}) {
     const binding=React.useMemo(()=>{
       const store=entry.store?.create(session);
       const injected=entry.inject?.(session,store?.actions)||{};
@@ -245,11 +275,11 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
     const useTabInfo=React.useCallback(()=>({tab}),[tab]);
     const renderSlot=(name,props,options)=>{
       const child=ctx.slots.entriesOfSlot(name).find(item=>item.options.key===options?.entryKey);
-      return child?h(NativeRenderer,{ctx,session,entry:child,tab,ownerProps:props}):null;
+      return child?h(NativeRenderer,{ctx,hostProps,session,entry:child,tab,ownerProps:props}):null;
     };
-    return h(entry.component,{...binding,...ownerProps,useTabInfo,renderSlot});
+    return h(entry.component,{...hostProps,...binding,...ownerProps,useTabInfo,renderSlot});
   }
-  function NativeDocument({ctx,session,file,signal}) {
+  function NativeDocument({ctx,hostProps,session,file,signal}) {
     const [state,setState]=useState(null), [attempt,setAttempt]=useState(0);
     const scrollportRef=useRef(null);
     const bindScrollport=React.useCallback(node=>{scrollportRef.current=node;},[]);
@@ -285,7 +315,7 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
     },[file.path,session,tab]);
     if(state?.error)return h('div',{className:'preview-loading',role:'alert'},h('p',null,state.error),h('button',{className:'st-button',onClick:()=>setAttempt(value=>value+1)},'重试'));
     if(!state)return h('div',{className:'preview-loading',role:'status'},'正在加载…');
-    return h('div',{ref:scrollportRef,className:'native-document'},h(NativeRenderer,{key:tab.id,ctx,session,entry:state.entry,tab,
+    return h('div',{ref:scrollportRef,className:'native-document'},h(NativeRenderer,{key:tab.id,ctx,hostProps,session,entry:state.entry,tab,
       ownerProps:{content:state.content,resourceAddress:tab.contentId,wrap:true,scrollportRef:bindScrollport,addResource:address=>ctx.get('resources')?.pin(address,tab.signal),setResources:()=>{}}}));
   }
   // DSH 0.2.1-rc.2 owns this slot's declaration. Reuse its registered component
@@ -295,10 +325,13 @@ window.__ModuleLoader__.load({id: '__PACKAGE__', factory: require => {
     const injected=React.useMemo(()=>entry?.inject?.(session)||{},[entry,session]);
     if(!entry)return h('small',null,'宿主模型选择器未启用');
     const renderLabel=(name,owner,options)=>{
+      // This adapter supplies model labels, not the host conversation's session
+      // scope. Team-mode options require hooks supplied only by that scope.
+      if(name!=='conversation.input.model.label')return options?.fallback;
       const label=ctx.slots.entriesOfSlot(name)[0];
       return label?h(label.component,{...label.inject?.(session),...owner,...label.locale?{t:ctx.locale.bind(label.locale)}:{}}):options?.fallback;
     };
-    return h(entry.component,{...injected,locked,t:ctx.locale.bind(entry.locale),renderSlot:renderLabel});
+    return h(entry.component,{...injected,locked,select:async selection=>{try{await api({action:'selectModel',sessionId:session,selection});return {ok:true,value:undefined};}catch(error){return {ok:false,error};}},t:ctx.locale.bind(entry.locale),renderSlot:renderLabel});
   }
   function MessageActions({job}) {
     const [copied,setCopied] = useState(false), [copyError,setCopyError] = useState('');

@@ -6,7 +6,10 @@ import { mountGpuComponent } from './gpu-component.js';
 
 // Native Office/OCR DLL loaders cannot reliably use pnpm's deep virtual store.
 // Keep an immutable, versioned runtime outside translation history/cache.
-export async function prepareRuntime(root, home, edition, version, packageRoot = root) {
+export async function prepareRuntime(root, home, edition, version) {
+  const packageRoot=root;
+  const manifest=JSON.parse(await readFile(join(packageRoot,'package.json'),'utf8'));
+  if(manifest.translatorRuntimePackage)root=dirname(createRequire(join(packageRoot,'package.json')).resolve(manifest.translatorRuntimePackage+'/package.json'));
   const destination=join(home, version+'-'+edition);
   const ready=join(destination,'ready.json');
   try { if (JSON.parse(await readFile(ready,'utf8')).version===version) return join(destination,'runtime'); }

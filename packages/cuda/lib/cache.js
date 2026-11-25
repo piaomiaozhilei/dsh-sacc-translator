@@ -20,7 +20,7 @@ export async function translationCache(root, clear=false) {
     }
   }
   for(const name of await readdir(root)) {
-    if(name==='settings.json'||name==='settings.json.tmp')continue;
+    if(['settings.json','settings.json.tmp','translation-sessions.json','translation-sessions.json.tmp'].includes(name))continue;
     await visit(join(root,name));
   }
   return {bytes,files,measuredAt:new Date().toISOString()};

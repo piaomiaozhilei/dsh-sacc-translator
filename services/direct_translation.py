@@ -1862,11 +1862,11 @@ def _add_pdf_neighbor_context(page_units):
             unit["context"] = f"{unit.get('context') or ''}；" + "；".join(neighbors)
 
 
-def _pdf_table_cells(page):
+def _pdf_table_cells(page, paths=None):
     """Return detected cell rectangles without leaking PyMuPDF's advisory log."""
     try:
         with contextlib.redirect_stdout(StringIO()):
-            finder = page.find_tables()
+            finder = page.find_tables(**({"paths": paths} if paths is not None else {}))
     except Exception:
         return []
     cells, seen = [], set()
@@ -1906,9 +1906,25 @@ def _assign_pdf_spans_to_cells(span_refs, cells):
     when nested or phantom spanning cells are present.
     """
     ownership = {index: [] for index in range(len(cells))}
+    # Index cell envelopes by vertical strip. Keep the exact containment and
+    # smallest-area/overlap tie-breaking below: only the candidate lookup changes.
+    # Broad cells stay in a separate list to bound memory for unusual page sizes.
+    strips, broad = {}, []
+    strip_height = 32.0
+    for index, cell in enumerate(cells):
+        bbox = cell["bbox"]
+        first = math.floor((float(bbox[1]) - 0.75) / strip_height)
+        last = math.floor((float(bbox[3]) + 0.75) / strip_height)
+        if last - first > 128:
+            broad.append(index)
+        else:
+            for strip in range(first, last + 1):
+                strips.setdefault(strip, []).append(index)
     for ref in span_refs:
         candidates = []
-        for index, cell in enumerate(cells):
+        center_y = (float(ref["bbox"][1]) + float(ref["bbox"][3])) / 2.0
+        for index in strips.get(math.floor(center_y / strip_height), []) + broad:
+            cell = cells[index]
             if not _span_belongs_to_cell(ref["bbox"], cell["bbox"]):
                 continue
             bbox = cell["bbox"]
@@ -2579,7 +2595,15 @@ def _extract_pdf(
         # Do not remove_rotation(): it can reset CropBox on landscape PDFs.
         display_matrix = page.rotation_matrix
         with _pdf_display_coordinates(page):
-            detected_cells = _pdf_table_cells(page) if span_refs else []
+            try:
+                drawings = page.get_drawings()
+            except Exception:
+                drawings = None
+            if span_refs:
+                report_page_progress(phase="tables", status="processing")
+                detected_cells = _pdf_table_cells(page, paths=drawings)
+            else:
+                detected_cells = []
         for ref in span_refs:
             ref["bbox"] = list(fitz.Rect(ref["bbox"]) * display_matrix)
             if ref["origin"]:
@@ -2676,10 +2700,7 @@ def _extract_pdf(
             # text so extraction and rebuild coordinates cannot be duplicated.
             del units[page_unit_start:]
             text_refs = []
-        try:
-            drawing_count = len(page.get_drawings())
-        except Exception:
-            drawing_count = 0
+        drawing_count = len(drawings) if drawings is not None else 0
         if native_text_usable:
             base_type = "text"
         else:
@@ -5010,7 +5031,7 @@ def process_direct_artifacts(
                             if phase == "ocr" and ocr_workers > 1:
                                 message = f"正在 {ocr_workers} 路并行 OCR · 已完成 {completed_pages}/{total_pages} 页"
                             else:
-                                action = "OCR 识别" if phase == "ocr" else ("提取文字层" if phase == "native" else "检查页面类型")
+                                action = {"ocr": "OCR 识别", "native": "提取文字层", "tables": "分析表格结构"}.get(phase, "检查页面类型")
                                 message = f"正在{action}第 {current_page}/{total_pages} 页 · 已完成 {completed_pages} 页"
                             if ocr_cached:
                                 message += f" · 已恢复 {ocr_cached} 页"

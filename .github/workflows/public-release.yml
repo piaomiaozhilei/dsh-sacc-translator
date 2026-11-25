@@ -1,0 +1,26 @@
+name: Publish verified translator release
+on:
+  push:
+    tags: ['v0.2.3']
+permissions:
+  contents: write
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: node --test plugins/dsh-translator/tests/*.test.mjs
+      - run: python release/build_public.py --base /tmp/base.tgz --out /tmp/public
+      - run: npm pack ./packages/cpu --pack-destination /tmp/public && npm pack ./packages/cuda --pack-destination /tmp/public
+      - run: python release/verify_public.py /tmp/public
+      - name: Publish complete assets together
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create v0.2.3 --verify-tag --draft --title "v0.2.3 · 保存流程、模型适配与 PDF 提速" --notes-file release/NOTES-0.2.3.md
+          gh release upload v0.2.3 /tmp/public/*
+          gh release edit v0.2.3 --draft=false --latest

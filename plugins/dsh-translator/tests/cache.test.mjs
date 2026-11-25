@@ -13,6 +13,7 @@ test('cache counts history/uploads/previews, preserves settings and other sessio
   await mkdir(join(base,'other-session'));
   await writeFile(join(base,'other-session','file'),'outside');
   await writeFile(join(root,'settings.json'),'settings');
+  await writeFile(join(root,'translation-sessions.json'),'["owned-session"]');
   await writeFile(join(root,'job','job.json'),'history');
   await writeFile(join(root,'job','files','upload'),'12345');
   await writeFile(join(root,'previews','preview'),'123');
@@ -21,6 +22,7 @@ test('cache counts history/uploads/previews, preserves settings and other sessio
   assert.equal((await translationCache(root,true)).bytes,15);
   assert.equal((await translationCache(root)).bytes,0);
   assert.equal(await readFile(join(root,'settings.json'),'utf8'),'settings');
+  assert.equal(await readFile(join(root,'translation-sessions.json'),'utf8'),'["owned-session"]');
   assert.equal(await readFile(join(base,'other-session','file'),'utf8'),'outside');
 });
 

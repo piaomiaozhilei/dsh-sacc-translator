@@ -10,11 +10,11 @@ Windows x64 翻译插件，提供侧栏独立入口与专属翻译界面，支�
 
 ## 状态
 
-当前源码对应 0.2.2，已检查 DSH 0.2.1-rc.2 / rc.3 接口。`engines.dsh` 使用 `*`，正式版与预发布版不再因版本号被拦截；这不代表未来接口变化已经验证。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，包含 Rust 屏幕翻译源码及入口包所需原生组件，不包含 SACC 主应用、用户数据、密钥、日志或大型文档运行库。
+当前源码对应 0.2.3，已检查 DSH 0.2.2-rc.3 / rc.5 接口。`engines.dsh` 使用 `>=0.2.2-rc.3`，允许后续 0.2.x、0.3.x 安装；这不代表未来接口变化已经验证。支持 CPU 版与自动绑定 GPU 组件的 CUDA 版。仓库只包含翻译所需源码，包含 Rust 屏幕翻译源码及入口包所需原生组件，不包含 SACC 主应用、用户数据、密钥、日志或大型文档运行库。
 
 支持扩展名：doc/docx、xls/xlsx、ppt/pptx、pdf、png/jpg/jpeg/bmp/gif/webp、txt/md/csv/html/htm。复杂排版与 OCR 译文仍需人工复核。
 
-## npm 安装（0.2.2）
+## npm 安装（0.2.3）
 
 官方“添加插件”输入 `dsh-sacc-translator-cpu` 或 `dsh-sacc-translator-cuda`。也可使用 CLI：
 
@@ -24,11 +24,29 @@ dsh plugin --profile desktop add dsh-sacc-translator-cpu
 dsh plugin --profile desktop add dsh-sacc-translator-cuda
 ```
 
-npm 入口包约 550 KB（含 Windows x64 Rust 屏幕翻译组件）。包管理器自动下载固定版本 GitHub Release 运行时；CUDA 额外自动下载 GPU 组件，无安装脚本。首次总下载量仍约 CPU 364 MB / CUDA 2.04 GB。不要同时启用两个版本。
+npm 入口包约 600 KB（含 Windows x64 Rust 屏幕翻译组件）。包管理器自动下载固定版本 GitHub Release 运行时；CUDA 额外自动下载 GPU 组件，无安装脚本。首次总下载量仍约 CPU 364 MB / CUDA 2.04 GB。不要同时启用两个版本。
 
-基础运行时作为内部依赖 `dsh-sacc-translator-runtime` 引用已验证的 CPU 0.1.17 Release 包，用户无需单独安装或启用。npm 包不包含用户文档、设置、密钥或历史。0.1.17 完整 Release 安装方法仍可使用。
+基础运行时作为内部依赖 `dsh-sacc-translator-runtime` 引用本次 0.2.3 Release 运行库，用户无需单独安装或启用。npm 包不包含用户文档、设置、密钥或历史。0.1.17 完整 Release 安装方法仍可使用。
 
 当前入口包构建：`npm pack ./packages/cpu` 和 `npm pack ./packages/cuda`。下面的完整包构建配方须先检出 `v0.1.17` 标签，避免混用版本。
+
+## 0.2.3 更新
+
+下载改为先选择位置，确认后才读取译文并流式写盘；取消选择不读取文件。修复旧流程把整份译文读入页面后才弹出保存窗口的问题，并显示保存进度。
+
+- 修复图片预览缺少上下文菜单接口。
+- 翻译模型设置与普通会话隔离；适配官方和部门网关各自支持的推理参数。
+- 保留翻译会话标识，改善恢复与失败提示。
+- 更新文档运行库，包含 PDF 单元格索引与绘图复用优化。
+- Windows x64；DSH >=0.2.2-rc.3，允许后续 0.2.x、0.3.x 安装，未来接口兼容仍需验证。
+
+CPU 与 CUDA 入口分别提供，CPU 不引入 GPU 组件。npm 与市场入口均固定引用本次 0.2.3 文档运行库；CUDA 继续复用未变化的 GPU 组件。安装或更新后完全退出 DSH（包括托盘）再启动。
+
+验证：36 项 JavaScript 测试、62 项 Python 测试通过；重新构建的 worker 通过临时 PDF 表格提取、模拟翻译与输出重建测试。保存组件通过临时文件流式复制、覆盖保护和失败清理测试。发布检查逐文件验证运行库和入口模块；未使用用户译文或真实模型额度进行测试。
+
+附带 SHA256SUMS.txt。完整离线一键安装包与此 npm/市场入口是不同的交付方式；本 Release 的入口包通过包管理器解析固定依赖。
+
+构建：`python release/build_public.py --base .build/base.tgz --out .build/public`；随后 `npm pack ./packages/cpu`、`npm pack ./packages/cuda`，运行 `release/verify_public.py` 校验。当前发布由 `public-release.yml` 在 v0.2.3 标签触发，历史脚本仅适用于各自旧版本。
 
 ## 0.2.2 更新
 

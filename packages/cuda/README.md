@@ -26,7 +26,7 @@ Open **Translation** from the DSH sidebar to enter a dedicated interface with **
 
 ## 安装与运行说明 / Installation and runtime
 
-Windows x64. DSH version numbers are unrestricted (engines.dsh = *); required host APIs are checked at startup. Future API changes may still require updates.
+Windows x64, DSH >=0.2.2-rc.3. Allows later 0.2.x and 0.3.x releases; required APIs are checked at startup. Future compatibility is not guaranteed.
 
 This small npm package automatically installs its pinned document runtime from GitHub Releases. The CUDA edition also installs its pinned GPU component. No postinstall scripts are required. CPU/CUDA share settings and translation history; enable only one edition.
 
@@ -37,3 +37,7 @@ Source, installation details and validation: https://github.com/piaomiaozhilei/d
 Version 0.1.19 defaults to 5 concurrent translation requests; saved preferences take precedence. Bundle overrides support PDF/general file reads up to 1 GiB, Excel up to 256 MiB/1,000,000 cells/120 seconds, and Office inputs up to 512 MiB with PDF output up to 1 GiB and a 300-second conversion timeout. Large previews still load full files and need sufficient memory. Profile overrides take precedence.
 
 Version 0.2.2 includes native Rust screen translation. Enable it in the translator panel, press Ctrl+Shift+S to select an area, then Enter to translate. Selection persists while translating; the overlay uses a continuous Gaussian-blurred backdrop. Screen OCR uses CPU in both editions and releases models after 45 seconds idle. Full live-desktop/model visual verification remains incomplete.
+
+## 0.2.3
+
+先选择保存位置，确认后才读取译文并流式写盘，取消选择不读文件；保存期间显示进度。修复图片预览上下文菜单接口、翻译与普通会话模型推理设置隔离、模型参数兼容与翻译会话持久化。更新文档运行库，包含 PDF 页面分析提速。更新后完全退出 DSH（含托盘）再启动。

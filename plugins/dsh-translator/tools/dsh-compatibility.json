@@ -1,5 +1,5 @@
 {
-  "range": "*",
-  "verifiedRuntimes": ["0.2.1-rc.2", "0.2.1-rc.3"],
-  "policy": "User requested all version numbers, including prereleases. DSH evaluates ranges with includePrerelease=true. Future interfaces are not guaranteed compatible; check required host methods before startup."
+  "range": ">=0.2.2-rc.3",
+  "verifiedRuntimes": ["0.2.2-rc.3", "0.2.2-rc.5"],
+  "policy": "Allow future versions, including prereleases, without pinning each rc. DSH evaluates ranges with includePrerelease=true. Verified versions are evidence, not an allowlist. Future interfaces are not guaranteed compatible; required host interfaces are checked at startup."
 }

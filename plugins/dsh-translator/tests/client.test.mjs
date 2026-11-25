@@ -3,18 +3,38 @@ import assert from 'node:assert/strict';
 import vm from 'node:vm';
 import {readFile} from 'node:fs/promises';
 
+test('embedded image renderer receives root context-menu hooks, including nested bodies',async()=>{
+  let plugin;
+  const React={Component:class {},createElement:(type,props)=>({type,props}),useMemo:fn=>fn(),useCallback:fn=>fn};
+  const source=(await readFile(new URL('../src/client.js',import.meta.url),'utf8')).replace('return {inject:', 'return {NativeRenderer,inject:');
+  vm.runInNewContext(source,{window:{__ModuleLoader__:{load:({factory})=>{plugin=factory(()=>React);}}},__STYLES__:''});
+  const bindings={getTriggerProps:()=>({onContextMenu:'host-handler'})};
+  const hook=()=>bindings;
+  const image=props=>props.useContextMenu().getTriggerProps();
+  const entry={component:image,inject:()=>({}),options:{key:'image'}};
+  const ctx={locale:{bind:()=>()=>''},slots:{entriesOfSlot:()=>[entry]}};
+  const result=plugin.NativeRenderer({ctx,hostProps:{useContextMenu:hook},session:'s',entry,tab:{id:'t'},ownerProps:{}});
+  assert.equal(result.type(result.props).onContextMenu,'host-handler');
+  const child=result.props.renderSlot('body',{}, {entryKey:'image'});
+  const nested=child.type(child.props);
+  assert.equal(nested.type(nested.props).onContextMenu,'host-handler');
+});
+
 test('view switch preserves draft and attachment; native model component receives host session', async () => {
   const values=[];let cursor=0, plugin, Panel;
+  let submitted;
   const React={Component:class {},createElement:(type,props,...children)=>({type,props:props||{},children}),
     useState:initial=>{const i=cursor++;if(!(i in values))values[i]=initial;return [values[i],v=>{values[i]=typeof v==='function'?v(values[i]):v;}];},
-    useEffect:()=>{},useRef:initial=>({current:initial}),useMemo:fn=>fn(),Fragment:'fragment'};
+    useEffect:()=>{},useRef:initial=>({current:initial}),useMemo:fn=>fn(),useCallback:fn=>fn,Fragment:'fragment'};
   const source=await readFile(new URL('../src/client.js',import.meta.url),'utf8');
-  vm.runInNewContext(source,{window:{__ModuleLoader__:{load:({factory})=>{plugin=factory(()=>React);}}},__STYLES__:'',AbortController});
+  vm.runInNewContext(source,{window:{__ModuleLoader__:{load:({factory})=>{plugin=factory(()=>React);}}},__STYLES__:'',AbortController,
+    fetch:async(_url,init)=>{submitted=JSON.parse(init.body);return {ok:true,json:async()=>({ok:true})};}});
   const native=()=>null;let injectedSession;
   const ctx={slots:{inject:(_name,fn)=>fn(),register:(options,component)=>{if(options.name==='main')Panel=component;},
-    entriesOfSlot:()=>[{component:native,locale:'model',inject:session=>{injectedSession=session;return {directory:'host-directory'};}}]},locale:{bind:()=>()=>''}};
+    entriesOfSlot:()=>[{component:native,locale:'model',inject:session=>{injectedSession=session;return {directory:'host-directory',select:()=>{throw new Error('must not change global model defaults');}};}}]},locale:{bind:()=>()=>''}};
   plugin.apply(ctx);
-  const render=()=>{cursor=0;return Panel({ctx});};
+  const useContextMenu=()=>({getTriggerProps:()=>({})});
+  const render=()=>{cursor=0;return Panel({ctx,useContextMenu});};
   const all=node=>!node||typeof node!=='object'?[]:[node,...(node.children||[]).flat(Infinity).flatMap(all)];
   const find=(tree,predicate)=>all(tree).find(predicate);
   let tree=render();
@@ -35,9 +55,16 @@ test('view switch preserves draft and attachment; native model component receive
   const rendered=nativeSeat.type(nativeSeat.props);
   assert.equal(rendered.type,native);assert.equal(injectedSession,'translation-session');
   assert.equal(rendered.props.directory,'host-directory');assert.equal(rendered.props.locked,false);
+  assert.equal((await rendered.props.select({provider:'deepseek-account',model:'deepseek-flash',reasoningEffort:'off'})).ok,true);
+  assert.equal(submitted.action,'selectModel');assert.equal(submitted.sessionId,'translation-session');
+  assert.equal(rendered.props.renderSlot('conversation.input.model.options',{}),undefined);
+  assert.equal(rendered.props.renderSlot('conversation.input.model.label',{}).type,native);
   values[5]=[{id:'document-job',status:'completed',createdAt:new Date().toISOString(),artifacts:[{artifact_id:'a',name:'sample.pdf',downloadable:true,warnings:['可能缺少参数: AB12','OCR 请复核']}]}];
   values[17]={name:'sample.pdf',files:[{path:'original.pdf'},{path:'translated.pdf'}],signal:new AbortController().signal};
   values[18]='both';tree=render();
+  const documents=all(tree).filter(n=>n.type?.name==='NativeDocument');
+  assert.equal(documents.length,2);
+  assert.equal(documents[0].props.hostProps.useContextMenu,useContextMenu);
   assert.equal(all(tree).filter(n=>n.props['aria-label']==='预览文档').length,1);
   const warnings=find(tree,n=>n.type==='details'&&n.props.className==='validation-warnings');
   assert.ok(warnings);assert.ok(!warnings.props.open);

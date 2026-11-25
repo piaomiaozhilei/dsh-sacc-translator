@@ -1,6 +1,6 @@
 {
   "name": "dsh-sacc-translator-cuda",
-  "version": "0.2.2",
+  "version": "0.2.3",
   "description": "SACC 原格式文档翻译 CUDA",
   "type": "module",
   "main": "lib/host.js",
@@ -12,7 +12,7 @@
     "./cordis.patch.yml": "./cordis.patch.yml"
   },
   "engines": {
-    "dsh": "*"
+    "dsh": ">=0.2.2-rc.3"
   },
   "dsh": {
     "bundle": {
@@ -49,7 +49,7 @@
   ],
   "dependencies": {
     "dsh-sacc-translator-gpu": "https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-gpu-0.1.16.tgz",
-    "dsh-sacc-translator-runtime": "https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.1.17/dsh-sacc-translator-cpu-0.1.17.tgz"
+    "dsh-sacc-translator-runtime": "https://github.com/piaomiaozhilei/dsh-sacc-translator/releases/download/v0.2.3/dsh-sacc-translator-runtime-0.2.3.tgz"
   },
   "translatorRuntimePackage": "dsh-sacc-translator-runtime",
   "files": [
