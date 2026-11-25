@@ -11,3 +11,6 @@
 *.sqlite*
 *.tgz
 *.zip
+
+!release/runtime-overlay/
+!release/runtime-overlay/**
